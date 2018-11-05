@@ -420,7 +420,7 @@ def chooseBulbs(params) {
 	    }
 		else if (b.type.equalsIgnoreCase("Color Temperature Light")) {
 			 try {
-                    def d = addChildDevice("info_fiend", "Hue B Smart White Ambiance", devId, bridge.value.hub, ["label": b.label])
+                    def d = addChildDevice("info_fiend", "Hue B Smart White Ambiance Bulb", devId, bridge.value.hub, ["label": b.label])
 				["ct", "bri", "reachable", "on"].each { p ->
                         		d.updateStatus("state", p, b.state[p])
                 		}

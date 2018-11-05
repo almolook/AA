@@ -12,10 +12,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Version 1 TMLeafs Fork
- *	1.2 Added command flashCoRe for webcore
- *	1.4 Fixed IDE Logging Information + Other Bug Fixes
- *	1.5 Added Light capability for smartapps
+ *	Changelog:
+ *  05/11/2018 xap-code fork for Hubitat
  *
  */
 preferences {
@@ -54,47 +52,6 @@ metadata {
 	attribute "username", "string"
 	attribute "idelogging", "string"
 	}
-
-	simulator {
-		// TODO: define status and reply messages here
-	}
-
-	tiles (scale: 2){
-		multiAttributeTile(name:"rich-control", type: "lighting", width: 6, height: 4, canChangeIcon: true){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-multi", backgroundColor:"#00a0dc", nextState:"turningOff"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-multi", backgroundColor:"#ffffff", nextState:"turningOn"
-				attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-multi", backgroundColor:"#00a0dc", nextState:"turningOff"
-				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-multi", backgroundColor:"#ffffff", nextState:"turningOn"
-			}
-            		tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-				attributeState "level", action:"switch level.setLevel", range:"(0..100)"
-			}
-	}
-
-	standardTile("reset", "device.reset", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"Reset", action:"reset", icon:"st.lights.philips.hue-multi"
-	}
-	
-	standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
-	}
-        
-      	standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-multi"
-	}
-        
-	valueTile("transitiontime", "device.transitionTime", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
-            state "transitiontime", label: 'Transition Time: ${currentValue}'
-        }
-
-	valueTile("groupID", "device.groupID", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
-		state "default", label: 'GroupID: ${currentValue}'
-	}	
-
-	}
-	main(["rich-control"])
-	details(["rich-control","flash", "reset", "refresh", "transitiontime", "groupID"])
 }
 
 private configure() {		
@@ -146,8 +103,10 @@ def setLevel(inLevel) {
 
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	def tt = this.device.currentValue("transitionTime") as Integer ?: 0
-    
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+        
+    runIn(1, refresh)
+
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -176,8 +135,10 @@ def on() {
 	def tt = device.currentValue("transitionTime") as Integer ?: 0
 	def percent = device.currentValue("level") as Integer ?: 100
 	def level = scaleLevel(percent, true, 254)
-    
-        return new physicalgraph.device.HubAction(
+        
+    runIn(1, refresh)
+
+        return new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -194,8 +155,10 @@ def off() {
     
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	def tt = device.currentValue("transitionTime") as Integer ?: 0
-    
-	return new physicalgraph.device.HubAction(
+        
+    runIn(1, refresh)
+
+	return new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -236,7 +199,7 @@ def reset() {
 def flash() {
 	if(device.currentValue("idelogging") == 'All'){log.trace "Hue B Smart Lux Group: flash(): "}
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -253,7 +216,7 @@ def flash() {
 def flashCoRe() {
 	if(device.currentValue("idelogging") == 'All'){log.trace "Hue B Smart Lux Group: flashCoRe(): "}
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -270,7 +233,7 @@ def flashCoRe() {
 def flash_off() {
 	if(device.currentValue("idelogging") == 'All'){log.trace "Hue B Smart Lux Group: flash_off(): "}
     	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
