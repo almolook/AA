@@ -12,12 +12,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Version 1 TMLeafs Fork
- *	Version 1.1 Thanks to Detmer for changes and testing
- *	Version 1.5 Remove non working Schedules
- *	Version 1.5 Remove Schedules and other non working code & Clean up
- *	Version 1.7 Made changes to work with ST Backup update on the 6th September
- *	Version 1.71 Added version information on IDE Logging
+ *	Changelog:
+ *  04/11/2018 xap-code fork for Hubitat
  */
 
 import groovy.json.*
@@ -25,9 +21,7 @@ import groovy.json.*
 metadata {
 	definition (name: "Hue B Smart Bridge", namespace: "info_fiend", author: "Anthony Pastor") {
 	capability "Actuator"
-	capability "Bridge"
 	capability "Health Check"
-
 
 	attribute "serialNumber", "string"
 	attribute "networkAddress", "string"
@@ -44,28 +38,6 @@ metadata {
         command "pollGroups"
         command "pollScenes"
         
-	}
-
-	simulator {
-		// TODO: define status and reply messages here
-	}
-
-	tiles(scale: 2) {
-        	standardTile("bridge", "device.username", width: 6, height: 4) {
-        		state "default", label:"Hue Bridge", inactivelabel:true, icon:"st.Lighting.light99-hue", backgroundColor: "#cccccc"
-        }
-		valueTile("idNumber", "device.idNumber", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'MAC Address:\n ${currentValue}'
-		}
-		valueTile("networkAddress", "device.networkAddress", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'IP Address:\n ${currentValue}'
-		}
-		valueTile("username", "device.username", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'Username:\n ${currentValue}'
-		}
-		
-	main "bridge"
-	details(["bridge", "idNumber", "networkAddress", "username"])	
 	}
 }
 
@@ -106,7 +78,7 @@ def discoverItems(inItems = null) {
 	def result 
         
     if (!inItems) {
-	    result = new physicalgraph.device.HubAction(
+	    result = new hubitat.device.HubAction(
 			method: "GET",
 			path: "/api/${username}/",
 			headers: [
@@ -125,7 +97,7 @@ def pollItems() {
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new physicalgraph.device.HubAction(
+	sendHubCommand(new hubitat.device.HubAction(
 	method: "GET",
 	path: "/api/${username}/",
 		headers: [
@@ -141,7 +113,7 @@ def discoverBulbs() {
 	def host = state.host
 	def username = state.userName
         
-	def result = new physicalgraph.device.HubAction(
+	def result = new hubitat.device.HubAction(
 	method: "GET",
 	path: "/api/${username}/lights/",
 		headers: [
@@ -158,7 +130,7 @@ def pollBulbs() {
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new physicalgraph.device.HubAction(
+	sendHubCommand(new hubitat.device.HubAction(
 	method: "GET",
 	path: "/api/${username}/lights/",
 		headers: [
@@ -174,7 +146,7 @@ def discoverGroups() {
 	def host = state.host
 	def username = state.userName
         
-	def result = new physicalgraph.device.HubAction(
+	def result = new hubitat.device.HubAction(
 		method: "GET",
 		path: "/api/${username}/groups/",
 		headers: [
@@ -191,7 +163,7 @@ def pollGroups() {
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new physicalgraph.device.HubAction(
+	sendHubCommand(new hubitat.device.HubAction(
 	method: "GET",
 	path: "/api/${username}/groups/",
 		headers: [
@@ -207,7 +179,7 @@ def pollScenes() {
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new physicalgraph.device.HubAction(
+	sendHubCommand(new hubitat.device.HubAction(
 	method: "GET",
 	path: "/api/${username}/scenes/",
 		headers: [
@@ -314,8 +286,10 @@ def parse(String description) {
                       	scenes[k] = [id: k, label: v.name, type: "scene", lights: v.lights]
                    	}
                   	state.scenes = scenes
+
+                def data = new JsonBuilder([bulbs, scenes, groups, schedules, bridge.value.mac])
                 
-            	return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: [bulbs, scenes, groups, schedules, bridge.value.mac])
+            	return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: data.toString())
           
 			}
 			

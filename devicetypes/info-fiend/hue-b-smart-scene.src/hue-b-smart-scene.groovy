@@ -12,23 +12,24 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  	Version 1 	TMLeafs Fork
- *	Version 1.5	Remove QFixes & Schedules 
+ *	Changelog:
+ *  04/11/2018 xap-code fork for Hubitat
  */
 metadata {
 	definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
-	capability "Actuator"
+        
+        capability "Actuator"
         capability "Switch"
         capability "Momentary"
         capability "Sensor"
         capability "Configuration"
         
-	command "setToGroup"
+        command "setToGroup"
         command "setTo2Groups"        
         command "updateScene"
         command	"updateSceneFromDevice"
         command "updateStatus"
-	command "refresh"   
+        command "refresh"   
         
         attribute "getSceneID", "STRING"        
         attribute "lights", "STRING"  
@@ -37,42 +38,6 @@ metadata {
         attribute "username", "string"
         attribute "group", "NUMBER"
         attribute "lightStates", "json_object"  
-	}
-
-	simulator {
-		// TODO: define status and reply messages here
-	}
-
-	tiles (scale: 2) {
-	    multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true){
-		tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-		attributeState "off", label: 'push', action: "momentary.push", backgroundColor: "#ffffff",icon: "st.lights.philips.hue-multi", nextState: "on"
-        	attributeState "on",  label:'Push', action:"momentary.push", icon:"st.lights.philips.hue-multi", backgroundColor:"#00a0dc"
-			}
-	}
-    
-	standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 3, height: 2) {
-		state "default", label:"", action:"refresh", icon:"st.secondary.refresh"
-	}
-
-    	standardTile("sceneID", "device.sceneID", inactiveLabel: false, decoration: "flat", width: 6, height: 2) { //, defaultState: "State1"
-	       	state "sceneID", label: 'SceneID: ${currentValue} ' //, action:"getSceneID" //, backgroundColor:"#BDE5F2" //, nextState: "State2"
-    	}
-
-	standardTile("updateScene", "device.updateScene", inactiveLabel: false, decoration: "flat", width: 3, height: 2) {
-    	   	state "Ready", label: 'Update Scene', action:"updateSceneFromDevice", backgroundColor:"#FBB215"
-	}
-	
- 	valueTile("lights", "device.lights", inactiveLabel: false, decoration: "flat", width: 6, height: 2) {
-		state "default", label: 'Lights: ${currentValue}'
-        }
-        
-        valueTile("lightStates", "device.lightStates", inactiveLabel: false, decoration: "flat", width: 6, height: 2) {
-		state "default", label: 'lightStates: ${currentValue}'
-        }
-               
-    main "switch"
-    details (["switch", "updateScene", "refresh", "lights", "sceneID"])
 	}
 }
 
@@ -129,7 +94,7 @@ def setToGroup ( Integer inGroupID = 0) {
     log.debug "${this.device.label}: setToGroup: theGroup = ${inGroupID} "
     String gPath = "/api/${commandData.username}/groups/${inGroupID}/action"
 
-    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "${gPath}",
@@ -155,7 +120,7 @@ def setTo2Groups ( group1, group2 ) {
     
     String gPath = "/api/${commandData.username}/groups/${group1}/action"
 
-    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "${gPath}",
@@ -169,7 +134,7 @@ def setTo2Groups ( group1, group2 ) {
     log.debug "${this.device.label}: setTo2Groups: group2 = ${group2} "
     gPath = "/api/${commandData.username}/groups/${group2}/action"
 
-    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "${gPath}",
@@ -187,7 +152,7 @@ def turnGroupOn(inGroupID) {
 
     def commandData = parent.getCommandData(device.deviceNetworkId)
     
-        return new physicalgraph.device.HubAction(
+        return new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${inGroupID}/action",
@@ -206,7 +171,7 @@ def updateScene() {
 	log.debug "${commandData}"
     def sceneLights = this.device.currentValue("lights")
     log.debug "sceneLights = ${sceneLights}"
-    parent.sendHubCommand(new physicalgraph.device.HubAction(
+    parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/scenes/${commandData.deviceId}/",

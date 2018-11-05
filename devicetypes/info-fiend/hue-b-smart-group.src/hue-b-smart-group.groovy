@@ -12,13 +12,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *
- *	Version 1 TMLeafs Fork
- *	1.1 Fixed Transition Time Display Bug
- *	1.2 Added command flashCoRe for webcore
- *	1.4 Fixed IDE Logging Information + Other Bug Fixes
- *	1.5 Added Light capability for smartapps
- *	
+ *	Changelog:
+ *  04/11/2018 xap-code fork for Hubitat
  */
 preferences {
 	input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)")   
@@ -82,87 +77,6 @@ metadata {
 	attribute "idelogging", "string"
         
 	}
-
-	simulator {
-		// TODO: define status and reply messages here
-	}
-
-	tiles (scale: 2){
-		multiAttributeTile(name:"rich-control", type: "lighting", width: 6, height: 4, canChangeIcon: true){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-multi", backgroundColor:"#00a0dc", nextState:"turningOff"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-multi", backgroundColor:"#ffffff", nextState:"turningOn"
-				attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.lights.philips.hue-multi", backgroundColor:"#00a0dc", nextState:"turningOff"
-				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.lights.philips.hue-multi", backgroundColor:"#ffffff", nextState:"turningOn"
-			}
-            		tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-				attributeState "level", action:"switch level.setLevel", range:"(0..100)"
-            		}
-			tileAttribute ("device.color", key: "COLOR_CONTROL") {
-				attributeState "color", action:"setAdjustedColor"
-			}
-		}
-
-	valueTile("valueHue", "device.hue", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
-		state "hue", label: 'Hue: ${currentValue}'
-        state "-1", label: 'Hue: N/A'            
-	}
-
-	controlTile("hue", "device.hue", "slider", inactiveLabel: false,  width: 3, height: 1) { 
-       	state "setHue", action:"setHue", range:"(1..100)"
-	}
-    
-	valueTile("valueSat", "device.saturation", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
-		state "saturation", label: 'Sat: ${currentValue}'
-       	state "-1", label: 'Sat: N/A'                        
-	}
-
-	controlTile("saturation", "device.saturation", "slider", inactiveLabel: false,  width: 3, height: 1) { 
-        state "setSaturation", action:"setSaturation"
-	}
-        
-	valueTile("valueCT", "device.colorTemperature", inactiveLabel: false, decoration: "flat", width: 3, height: 1) {
-		state "colorTemperature", label: 'Color Temp:  ${currentValue}'
-       	state "-1", label: 'Color Temp: N/A'
-	}
-
-    controlTile("colorTemperature", "device.colorTemperature", "slider", inactiveLabel: false,  width: 3, height: 1, range:"(2200..6500)") { 
-       	state "setCT", action:"setColorTemperature"
-	}
-
-	standardTile("flash", "device.flash", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"Flash", action:"flash", icon:"st.lights.philips.hue-multi"
-	}
-	
-    standardTile("reset", "device.reset", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"Reset", action:"reset", icon:"st.lights.philips.hue-multi"
-	}
-
-	standardTile("toggleColorloop", "device.effect", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-		state "colorloop", label:"Color Loop On", action:"colorloopOff", nextState: "updating", icon:"https://raw.githubusercontent.com/infofiend/Hue-Lights-Groups-Scenes/master/smartapp-icons/hue/png/colorloop-on.png"
-       	state "none", label:"Color Loop Off", action:"colorloopOn", nextState: "updating", icon:"https://raw.githubusercontent.com/infofiend/Hue-Lights-Groups-Scenes/master/smartapp-icons/hue/png/colorloop-off.png"
-       	state "updating", label:"Working", icon: "st.secondary.secondary"
-	}
-   
-    valueTile("transitiontime", "device.transitionTime", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
-       	state "transitionTime", label: 'Transition Time: ${currentValue}'
-    }
-
-	valueTile("colormode", "device.colormode", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
-		state "default", label: 'Colormode: ${currentValue}'
-	}
-
-	valueTile("groupID", "device.groupID", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
-		state "default", label: 'GroupID: ${currentValue}'
-	}		
-
-	standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 3) {
-		state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
-	}
-    
-	}
-	main(["rich-control"])
-	details(["rich-control","valueHue","hue","valueSat","saturation","valueCT","colorTemperature", "flash","reset","toggleColorloop", "colormode", "transitiontime", "groupID","refresh"])
 }
 
 private configure() {		
@@ -227,7 +141,9 @@ def setLevel(inLevel) {
         state.ct = null
     }
     
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+    runIn(1, refresh)
+    
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -293,7 +209,7 @@ def sendToHub(values) {
     
 			//log.debug "XY value found.  Sending ${sendBody} " 
 
-			parent.sendHubCommand(new physicalgraph.device.HubAction(
+			parent.sendHubCommand(new hubitat.device.HubAction(
     			[
         			method: "PUT",
 					path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -317,7 +233,7 @@ def sendToHub(values) {
         	sendBody["xy"] = validValues.xy
 		//log.debug "Sending ${sendBody} "
 
-			parent.sendHubCommand(new physicalgraph.device.HubAction(
+			parent.sendHubCommand(new hubitat.device.HubAction(
     			[
     	    		method: "PUT",
 					path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -397,7 +313,7 @@ def setColorTemperature(inCT) {
     def isOn = this.device.currentValue("switch")
     if (isOn == "on") {
     	
-		parent.sendHubCommand(new physicalgraph.device.HubAction(
+		parent.sendHubCommand(new hubitat.device.HubAction(
     		[
         		method: "PUT",
 				path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -470,7 +386,9 @@ def on() {
         state.ct = null
     }
     
-    return new physicalgraph.device.HubAction(
+    runIn(1, refresh)
+    
+    return new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -488,7 +406,9 @@ def off() {
     def commandData = parent.getCommandData(device.deviceNetworkId)
     def tt = device.currentValue("transitionTime") as Integer ?: 0
 
-    return new physicalgraph.device.HubAction(
+    runIn(1, refresh)
+    
+    return new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -534,7 +454,7 @@ def flash() {
 	if(device.currentValue("idelogging") == 'All'){
 	log.trace "Hue B Smart Group: flash(): "}
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -552,7 +472,7 @@ def flashCoRe() {
 	if(device.currentValue("idelogging") == 'All'){
 	log.trace "Hue B Smart Lux Group: flashCoRe(): "}
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -571,7 +491,7 @@ def flash_off() {
 	log.trace "Hue B Smart Group: flash_off(): "}
     
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -764,7 +684,7 @@ def colorloopOn() {
     sendEvent(name: "colormode", value: "LOOP", isStateChange: true)
     
 	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
@@ -786,7 +706,7 @@ def colorloopOff() {
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
     sendEvent(name: "effect", value: "none", isStateChange: true)    
-	parent.sendHubCommand(new physicalgraph.device.HubAction(
+	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",

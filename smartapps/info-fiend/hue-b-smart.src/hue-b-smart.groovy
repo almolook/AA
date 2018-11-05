@@ -12,20 +12,12 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Version 1 TMLeafs Fork
- *	Version 1.1 Thanks to Detmer for changes and testing
- *	Version 1.2 Fixed Update problem due to bulb,scene or group deleted from hue without removing it from smartthings first. Thanks to Collisionc
- *	Version 1.2 Added FlashCoRe for webcore usage
- *      Version 1.3 Added White Ambience Group
- *	Version 1.4 Added Version Number into log to make sure people are running the latest version when they moan it doesnt work
- *	Version 1.5 Fixed install problem for some users
- *	Version 1.6 Added app settings menu, Updated logs with more than just debug messages, Added option to hide all app logs
- *	Version 1.7 Made changes to work with ST Backup update on the 6th September
- *	Version 1.71 Smartthings was storing Transition Time as decimal when it shouldn't, added done a work around
+ *	Changelog:
+ *  04/11/2018 xap-code fork for Hubitat
  */
  
 import groovy.json.*
- 
+
 definition(
         name: "Hue B Smart",
         namespace: "info_fiend",
@@ -38,23 +30,23 @@ definition(
 )
 
 preferences {
-    	page(name:"Bridges", content: "bridges")
-    	page(name:"linkButton", content: "linkButton")
+    page(name:"Bridges", content: "bridges")
+    page(name:"linkButton", content: "linkButton")
    	page(name:"linkBridge", content: "linkBridge")
    	page(name:"manageBridge", content: "manageBridge")
 	page(name:"chooseBulbs", content: "chooseBulbs")
  	page(name:"chooseScenes", content: "chooseScenes")
  	page(name:"chooseGroups", content: "chooseGroups")
 	page(name:"settings", content: "settings")
-    	page(name:"deleteBridge", content: "deleteBridge")
-        page(name:"unlinkBridge", content: "unlinkBridge")
+    page(name:"deleteBridge", content: "deleteBridge")
+    page(name:"unlinkBridge", content: "unlinkBridge")
 }
 
 def manageBridge(params) {
 
 	state.newSchedule = [:]
 
-    if (params.mac) {
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -145,7 +137,10 @@ def linkButton(params) {
      * also uses state.params to pass these on to the next page
      */
 
-    if (params.mac) {
+    log.debug ">>> linkButton(${params})"
+    
+    
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -156,6 +151,7 @@ def linkButton(params) {
     def refreshInterval = 3
     
     params.linkingBridge = true
+    
     if (!params.linkDone) {
         if ((linkRefreshcount % 2) == 0) {
         	logMessage("Sending Developer Request", "info")
@@ -165,7 +161,6 @@ def linkButton(params) {
         dynamicPage(name: "linkButton", refreshInterval: refreshInterval, nextPage: "linkButton") {
             section("Hue Bridge ${params.ip}") {
                 paragraph "Please press the link button on your Hue bridge."
-                image "http://www.developers.meethue.com/sites/default/files/smartbridge.jpg"
             }
             section() {
                 href(name:"Cancel", page:"Bridges", title: "", description: "Cancel")
@@ -319,7 +314,7 @@ def settings() {
 
 def deleteBridge(params) {
 
-    if (params.mac) {
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -338,9 +333,9 @@ def deleteBridge(params) {
         	logMessage("Removing ${devId}", "warn")
 			try {
     	    	deleteChildDevice(devId)
-			} catch (physicalgraph.exception.NotFoundException e) {
+			} catch (hubitat.exception.NotFoundException e) {
 	        	logMessage("${devId} already deleted?", "warn")
-			} catch (physicalgraph.exception.ConflictException e) {
+			} catch (hubitat.exception.ConflictException e) {
 	        	logMessage("${devId} still in use", "error")
 				text = text + "${it.label} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
 		        success = false
@@ -351,9 +346,9 @@ def deleteBridge(params) {
 		try {
         	unsubscribe(d)
     		deleteChildDevice(params.mac)
-		} catch (physicalgraph.exception.NotFoundException e) {
+		} catch (hubitat.exception.NotFoundException e) {
 	    	logMessage("${params.mac} already deleted?", "waren")
-		} catch (physicalgraph.exception.ConflictException e) {
+		} catch (hubitat.exception.ConflictException e) {
 	    	logMessage("${params.mac} still in use", "error")
 			text = text + "${params.mac} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
 			success = false
@@ -379,7 +374,7 @@ def deleteBridge(params) {
 
 def chooseBulbs(params) {
 
-    if (params.mac) {
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -419,7 +414,7 @@ def chooseBulbs(params) {
                 d.configure()
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
-			} catch (grails.validation.ValidationException e) {
+			} catch (Exception e) {
             	logMessage("${devId} already created", "warn")
 			}    
 	    }
@@ -433,7 +428,7 @@ def chooseBulbs(params) {
 				d.configure()
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
-           		} catch (grails.validation.ValidationException e) {
+           		} catch (Exception e) {
                 logMessage("${devId} already created", "warn")
             		}
 		}
@@ -449,7 +444,7 @@ def chooseBulbs(params) {
                 d.configure()
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
-			} catch (grails.validation.ValidationException e) {
+			} catch (Exception e) {
 	            logMessage("${devId} already created", "warn")
 			}
 		}
@@ -464,11 +459,11 @@ def chooseBulbs(params) {
         	deleteChildDevice(devId)
             addedBulbs.remove(bulbId)
             availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
-		} catch (physicalgraph.exception.NotFoundException e) {
+		} catch (hubitat.exception.NotFoundException e) {
         	logMessage("${devId} already deleted", "warn")
             addedBulbs.remove(bulbId)
             availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
-		} catch (physicalgraph.exception.ConflictException e) {
+		} catch (hubitat.exception.ConflictException e) {
         	logMessage("${devId} still in use", "error")
             errorText = "Bulb ${bridge.value.bulbs[bulbId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }     
@@ -499,7 +494,7 @@ def chooseBulbs(params) {
 
 def chooseScenes(params) {
  
-    if (params.mac) {
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -543,7 +538,7 @@ def chooseScenes(params) {
             d.configure()
 			addedScenes[sceneId] = s
 			availableScenes.remove(sceneId)
-		} catch (grails.validation.ValidationException e) {
+		} catch (Exception e) {
             	logMessage("${devId} already created", "warn")
 	    }
 	}
@@ -558,11 +553,11 @@ def chooseScenes(params) {
             addedScenes.remove(sceneId)
             availableScenes[sceneId] = bridge.value.scenes[sceneId]
             
-		} catch (physicalgraph.exception.NotFoundException e) {
+		} catch (hubitat.exception.NotFoundException e) {
         	logMessage("${devId} already deleted", "warn")
 			addedScenes.remove(sceneId)
             availableScenes[sceneId] = bridge.value.scenes[sceneId]
-		} catch (physicalgraph.exception.ConflictException e) {
+		} catch (hubitat.exception.ConflictException e) {
         	logMessage("${devId} still in use", "error")
             errorText = "Scene ${bridge.value.scenes[sceneId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }
@@ -598,7 +593,7 @@ def chooseGroups(params) {
 	state.availableBulbs = []
 
     
-    if (params.mac) {
+    if (params?.mac) {
         state.params = params;
     } else {
         params = state.params;
@@ -645,7 +640,7 @@ def chooseGroups(params) {
 	            d.configure()
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
-			} catch (grails.validation.ValidationException e) {
+			} catch (Exception e) {
     	        	logMessage("${devId} already created", "warn")
 	    	}
 		}
@@ -662,7 +657,7 @@ def chooseGroups(params) {
 	            d.configure()
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
-			} catch (grails.validation.ValidationException e) {
+			} catch (Exception e) {
     	        	logMessage("${devId} already created", "warn")
 	    	}
 		}
@@ -679,7 +674,7 @@ def chooseGroups(params) {
 	            d.configure()
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
-			} catch (grails.validation.ValidationException e) {
+			} catch (Exception e) {
     	        	logMessage("${devId} already created", "warn")
 	    	}
 		}        
@@ -694,11 +689,11 @@ def chooseGroups(params) {
         	deleteChildDevice(devId)
             addedGroups.remove(groupId)
             availableGroups[groupId] = bridge.value.groups[groupId]
-		} catch (physicalgraph.exception.NotFoundException e) {
+		} catch (hubitat.exception.NotFoundException e) {
         	logMessage("${devId} already deleted", "warn")
             addedGroups.remove(groupId)
             availableGroups[groupId] = bridge.value.groups[groupId]
-		} catch (physicalgraph.exception.ConflictException e) {
+		} catch (hubitat.exception.ConflictException e) {
         	logMessage("${devId} still in use", "error")
             errorText = "Group ${bridge.value.groups[groupId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }
@@ -764,19 +759,20 @@ def initialize() {
 }
 
 def itemDiscoveryHandler(evt) {
-	def data = parseJson(evt.data)
-	logMessage("evt = ${data}", "trace")
-    
-    	def bulbs = data[0]
-    	//log.debug "bulbs = ${bulbs}"
+
+    def data = parseJson(evt.data)
+    logMessage("data = $data", "trace")
+
+    def bulbs = data[0]
+//    	log.debug "bulbs = ${bulbs}"
     	def scenes = data[1]
-	//log.debug "scenes = ${scenes}"
+//	log.debug "scenes = ${scenes}"
     	def groups = data[2]
-	//log.debug "groups from = ${groups}"
+//	log.debug "groups from = ${groups}"
     	def schedules = data[3]
-	//log.debug "schedules = ${schedules}"
+//	log.debug "schedules = ${schedules}"
     	def mac = data[4]
-	//log.debug "mac = ${mac}"
+//	log.debug "mac = ${mac}"
 
 
 	def bridge = getBridge(mac)
@@ -872,7 +868,6 @@ def itemDiscoveryHandler(evt) {
                     }
                     if (scenelightStates) {
 					    it.updateStatus("scene", "lightStates", scenelightStates)
-				//	it.updateStatus("scene", "schedule", "off")
                     }
         	    }
 		    }
@@ -917,7 +912,7 @@ def locationHandler(evt) {
  **/
 private discoverHueBridges() {
     logMessage("Sending bridge discovery", "info")
-    sendHubCommand(new physicalgraph.device.HubAction("lan discovery urn:schemas-upnp-org:device:basic:1", physicalgraph.device.Protocol.LAN))
+    sendHubCommand(new hubitat.device.HubAction("lan discovery urn:schemas-upnp-org:device:basic:1", hubitat.device.Protocol.LAN))
 }
 
 private verifyHueBridges() {
@@ -931,7 +926,7 @@ private verifyHueBridges() {
 
 private verifyHueBridge(String deviceNetworkId, String host) {
 	logMessage("Verify Hue Bridge ${deviceNetworkId}", "info")
-	sendHubCommand(new physicalgraph.device.HubAction([
+	sendHubCommand(new hubitat.device.HubAction([
 			method: "GET",
 			path: "/description.xml",
 			headers: [
@@ -967,7 +962,7 @@ private processDiscoveryResponse(parsedEvent) {
    }
 }
 
-private processVerifyResponse(physicalgraph.device.HubResponse hubResponse) {
+private processVerifyResponse(hubitat.device.HubResponse hubResponse) {
     logMessage("description.xml response (application/xml)", "trace")
 	def body = hubResponse.xml
     logMessage("Processing verify response", "info")
@@ -993,7 +988,7 @@ private sendDeveloperReq(mac) {
     host = "${convertHexToIP(host)}" + ":80"
     logMessage("IP Address is ${host}", "info")
     
-	    sendHubCommand(new physicalgraph.device.HubAction([
+	    sendHubCommand(new hubitat.device.HubAction([
 			method: "POST",
 			path: "/api",
 			headers: [
@@ -1002,9 +997,9 @@ private sendDeveloperReq(mac) {
 			body: [devicetype: "$token-0"]], "${selectedHue}", [callback: "usernameHandler"]))
 }
 
-void usernameHandler(physicalgraph.device.HubResponse hubResponse) {
+void usernameHandler(hubitat.device.HubResponse hubResponse) {
 		def body = hubResponse.json
-        logMessage("Button Pressed - Link Done - Save Username", "info")
+    logMessage("Button Pressed - Link Done - Save Username (${body})", "info")
 		if (body.success != null) {
 			if (body.success[0] != null) {
 				if (body.success[0].username)
