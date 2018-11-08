@@ -20,16 +20,18 @@ metadata {
         
         capability "Actuator"
         capability "Switch"
-        capability "Momentary"
+		capability "PushableButton"
         capability "Sensor"
         capability "Configuration"
+        
         
         command "setToGroup"
         command "setTo2Groups"        
         command "updateScene"
         command	"updateSceneFromDevice"
         command "updateStatus"
-        command "refresh"   
+        command "refresh"
+        command "push"
         
         attribute "getSceneID", "STRING"        
         attribute "lights", "STRING"  
@@ -51,6 +53,7 @@ private configure() {
     sendEvent(name: "username", value: commandData.username, displayed:false, isStateChange: true)
     sendEvent(name: "lights", value: commandData.lights, displayed:false, isStateChange: true)
     sendEvent(name: "lightStates", value: commandData.lightStates, displayed:false, isStateChange: true)
+	sendEvent(name: "numberOfButtons", value: 1)
 }
 
 // parse events into attributes
@@ -77,7 +80,7 @@ def push() {
 	def theGroup = device.currentValue("group") ?: 0
     sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
 	sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
-    sendEvent(name: "momentary", value: "pushed", isStateChange: true)    
+    sendEvent(name: "pushed", value: 1, isStateChange: true)
 	setToGroup()
 }
 
