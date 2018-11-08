@@ -14,30 +14,28 @@
  *
  *	Changelog:
  *  04/11/2018 xap-code fork for Hubitat
+ *  08/11/2018 update scene to support pushable capability
  */
 metadata {
-	definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
+    definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
         
         capability "Actuator"
-        capability "Switch"
-		capability "PushableButton"
+        capability "PushableButton"
+        capability "Refresh"
         capability "Sensor"
-        capability "Configuration"
+        capability "Switch"
         
-        
-        command "setToGroup"
-        command "setTo2Groups"        
+        command "setToGroup", ["NUMBER"]
+        command "setTo2Groups", ["NUMBER", "NUMBER"]
         command "updateScene"
         command	"updateSceneFromDevice"
-        command "updateStatus"
         command "refresh"
-        command "push"
+        command "push", ["NUMBER"]
         
         attribute "getSceneID", "STRING"        
         attribute "lights", "STRING"  
         attribute "sceneID", "string"
         attribute "host", "string"
-        attribute "username", "string"
         attribute "group", "NUMBER"
         attribute "lightStates", "json_object"  
 	}
@@ -50,16 +48,14 @@ private configure() {
     sendEvent(name: "sceneID", value: commandData.deviceId, displayed:true, isStateChange: true)
     sendEvent(name: "scheduleId", value: commandData.scheduleId, displayed:true, isStateChange: true)
     sendEvent(name: "host", value: commandData.ip, displayed:false, isStateChange: true)
-    sendEvent(name: "username", value: commandData.username, displayed:false, isStateChange: true)
     sendEvent(name: "lights", value: commandData.lights, displayed:false, isStateChange: true)
     sendEvent(name: "lightStates", value: commandData.lightStates, displayed:false, isStateChange: true)
-	sendEvent(name: "numberOfButtons", value: 1)
+    sendEvent(name: "numberOfButtons", value: 1)
 }
 
 // parse events into attributes
 def parse(String description) {
 	log.debug "Parsing '${description}'"
-	
 }
 
 /** 
@@ -76,22 +72,22 @@ def off() {
 /**
  * capablity.momentary
  **/
-def push() {
-	def theGroup = device.currentValue("group") ?: 0
+def push(button = 1) {
+    def theGroup = device.currentValue("group") ?: 0
+    sendEvent(name: "pushed", value: 1, isStateChange: true, display: false)
     sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
-	sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
-    sendEvent(name: "pushed", value: 1, isStateChange: true)
-	setToGroup()
+    sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
+    setToGroup()
 }
 
 def setToGroup ( Integer inGroupID = 0) {
-	log.debug("setToGroup ${this.device.label}: Turning scene on for group ${inGroupID}!")
+
+    log.debug("setToGroup ${this.device.label}: Turning scene on for group ${inGroupID}!")
 
  	def commandData = parent.getCommandData(this.device.deviceNetworkId)
 	log.debug "setToGroup: ${commandData}"
     
 	def sceneID = commandData.deviceId
-//    def groupID = inGroupID ?: 0
 
 	log.debug "${this.device.label}: setToGroup: sceneID = ${sceneID} "
     log.debug "${this.device.label}: setToGroup: theGroup = ${inGroupID} "
@@ -107,7 +103,8 @@ def setToGroup ( Integer inGroupID = 0) {
 	        body: [scene: "${commandData.deviceId}"]
 		])
 	)
-parent.doDeviceSync()
+
+    parent.doDeviceSync()
 }
 
 def setTo2Groups ( group1, group2 ) {
@@ -147,7 +144,8 @@ def setTo2Groups ( group1, group2 ) {
 	        body: [scene: "${commandData.deviceId}"]
 		])
 	)
-parent.doDeviceSync()
+    
+    parent.doDeviceSync()
 }
 
 def turnGroupOn(inGroupID) {
@@ -195,12 +193,7 @@ def updateSceneFromDevice() {
 
 	String myScene = sceneIDfromD
 
-    if (sceneIDfromD) {	// == null) {
-//    	def sceneIDfromP = parent.getID(this) - "s"
-//    	log.debug "Retrieved sceneIDfromP: ${sceneIDfromP}."
- //       myScene = sceneIDfromP
-//    }
-
+    if (sceneIDfromD) {
     	updateScene()
 		//log.debug "Executing 'updateScene' for ${device.label} using sceneID ${myScene}."
 	}
@@ -239,5 +232,3 @@ def refresh() {
 	parent.doDeviceSync()
     configure()
 }
-
-def getDeviceType() { return "scenes" }
