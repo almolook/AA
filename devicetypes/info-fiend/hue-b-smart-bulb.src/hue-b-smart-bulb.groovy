@@ -113,7 +113,7 @@ def setLevel(inLevel, duration=null) {
     def tt = this.device.currentValue("transitionTime") as Integer ?: 0
     
     def sendBody = [:]
-    sendBody = ["on": true, "bri": level, "transitiontime": duration ? duration / 100 : tt]
+    sendBody = ["on": true, "bri": level, "transitiontime": duration ? duration * 10 : tt]
     if (state.xy) {
     	sendBody["xy"] = state.xy 
         state.xy = [:]
