@@ -17,7 +17,8 @@
  *  08/11/2018 Refactor to better fit Hubitat usage
  */
 preferences {
-    input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)", defaultValue: 2)   
+    input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)", defaultValue: 2)
+    input("flashNotifySecs", "number", title: "Flash notification seconds (default: 5s)", defaultValue: 5)
     input("debugEnabled", "bool", required:true, title: "Debug Logging Enabled?", defaultValue: true)
 } 
  
@@ -58,6 +59,8 @@ metadata {
         command "colorloopOff"
         command "flashOn"
         command "flashOff"
+        command "flashOnce"
+        command "flashNotify"
         
         // extra Hue attributes
         attribute "host", "STRING"
@@ -187,7 +190,7 @@ def sendToHub(values) {
 		
     	if (validValues.xy ) {
     
-			if(device.currentValue("idelogging") == "All"){log.debug "XY value found.  Sending ${sendBody} "}
+			log "XY value found.  Sending ${sendBody} "
 
 			parent.sendHubCommand(new hubitat.device.HubAction(
     			[
@@ -208,10 +211,10 @@ def sendToHub(values) {
 		} else {
     		def h = values.hue.toInteger()
         	def s = values.saturation.toInteger()
-			if(device.currentValue("idelogging") == "All"){log.trace "sendToHub: no XY values, so get from Hue & Saturation."}
+			log "sendToHub: no XY values, so get from Hue & Saturation."
 			validValues.xy = colorFromHSB(h, s, bri) 	//values.hue, values.saturation)		// getHextoXY(values.hex)
 			sendBody["xy"] = validValues.xy
-			if(device.currentValue("idelogging") == "All"){log.debug "Sending ${sendBody} "}
+			log "Sending ${sendBody} "
 
 			parent.sendHubCommand(new hubitat.device.HubAction(
     			[
@@ -233,7 +236,7 @@ def sendToHub(values) {
 	} else {
     	if (values.hue && values.saturation) {
             validValues.xy = colorFromHSB(values.hue, values.saturation, bri)
-            if(device.currentValue("idelogging") == "All"){log.debug "Light off, so saving xy value ${validValues.xy} for later."}
+            log "Light off, so saving xy value ${validValues.xy} for later."
             state.xy = validValues.xy
             state.ct = null
             
@@ -377,28 +380,48 @@ def refresh() {
 /**
  * Extra Hue Commands
  **/
+def flashOnce() {
+
+    log "Hue B Smart Bulb: flashOnce(): "
+    
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+    parent.sendHubCommand(new hubitat.device.HubAction(
+        [
+            method: "PUT",
+            path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+            headers: [
+                host: "${commandData.ip}"
+            ],
+            body: [alert: "select"]
+        ])
+    )
+}
+
+def flashNotify() {
+    flashOn()
+    runIn(flashNotifySecs ?: 5, flashOff)
+}
 
 def flashOn() {
-	if(device.currentValue("idelogging") == "All"){
-    	log.trace "Hue B Smart Bulb: flash(): "}
-    	def commandData = parent.getCommandData(device.deviceNetworkId)
-	parent.sendHubCommand(new hubitat.device.HubAction(
-    	[
-        	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
-	        headers: [
-	        	host: "${commandData.ip}"
-			],
-	        body: [alert: "lselect"]
-		])
-	)
     
-    runIn(5, flash_off)
+    log "Hue B Smart Bulb: flashOn(): "
+    
+    def commandData = parent.getCommandData(device.deviceNetworkId)
+    parent.sendHubCommand(new hubitat.device.HubAction(
+        [
+            method: "PUT",
+            path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+            headers: [
+                host: "${commandData.ip}"
+            ],
+            body: [alert: "lselect"]
+        ])
+    )
 }
 
 def flashOff() {
-	if(device.currentValue("idelogging") == "All"){
-	log.trace "Hue B Smart Bulb: flash_off(): "}
+
+    log "Hue B Smart Bulb: flashOff(): "
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new hubitat.device.HubAction(
@@ -570,7 +593,7 @@ private updateStatus(action, param, val) {
 }
 
 def colorloopOn() {
-    if(device.currentValue("idelogging") == 'All'){log.debug "Executing 'colorloopOn'"}
+    log "Executing 'colorloopOn'"
     def tt = device.currentValue("transitionTime") as Integer ?: 0
     
     def dState = device.latestValue("switch") as String ?: "off"
@@ -608,7 +631,7 @@ def colorloopOn() {
 }
 
 def colorloopOff() {
-    if(device.currentValue("idelogging") == 'All'){log.debug "Executing 'colorloopOff'"}
+    log "Executing 'colorloopOff'"
     def tt = device.currentValue("transitionTime") as Integer ?: 0
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
