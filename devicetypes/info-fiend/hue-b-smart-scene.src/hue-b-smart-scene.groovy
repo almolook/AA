@@ -14,7 +14,7 @@
  *
  *	Changelog:
  *  04/11/2018 xap-code fork for Hubitat
- *  08/11/2018 update scene to support pushable capability
+ *  12/11/2018 Link logging to smart app setting
  */
 metadata {
     definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
@@ -44,7 +44,7 @@ metadata {
 
 private configure() {		
     def commandData = parent.getCommandData(device.deviceNetworkId)
-    log.debug "${commandData = commandData}"
+    log "${commandData = commandData}", "debug"
     sendEvent(name: "sceneID", value: commandData.deviceId, displayed:true, isStateChange: true)
     sendEvent(name: "scheduleId", value: commandData.scheduleId, displayed:true, isStateChange: true)
     sendEvent(name: "host", value: commandData.ip, displayed:false, isStateChange: true)
@@ -55,7 +55,7 @@ private configure() {
 
 // parse events into attributes
 def parse(String description) {
-	log.debug "Parsing '${description}'"
+	log "Parsing '${description}'", "debug"
 }
 
 /** 
@@ -81,16 +81,15 @@ def push(button = 1) {
 }
 
 def setToGroup ( Integer inGroupID = 0) {
-
-    log.debug("setToGroup ${this.device.label}: Turning scene on for group ${inGroupID}!")
+    log "setToGroup ${this.device.label}: Turning scene on for group ${inGroupID}!", "trace"
 
  	def commandData = parent.getCommandData(this.device.deviceNetworkId)
-	log.debug "setToGroup: ${commandData}"
+	log "setToGroup: ${commandData}", "debug"
     
 	def sceneID = commandData.deviceId
 
-	log.debug "${this.device.label}: setToGroup: sceneID = ${sceneID} "
-    log.debug "${this.device.label}: setToGroup: theGroup = ${inGroupID} "
+	log "${this.device.label}: setToGroup: sceneID = ${sceneID} ", "debug"
+    log "${this.device.label}: setToGroup: theGroup = ${inGroupID} ", "debug"
     String gPath = "/api/${commandData.username}/groups/${inGroupID}/action"
 
     parent.sendHubCommand(new hubitat.device.HubAction(
@@ -108,15 +107,15 @@ def setToGroup ( Integer inGroupID = 0) {
 }
 
 def setTo2Groups ( group1, group2 ) {
-	log.debug("setTo2Groups ${this.device.label}: Turning scene on for groups ${group1} , ${group2}!")
+	log "setTo2Groups ${this.device.label}: Turning scene on for groups ${group1} , ${group2}!", "trace"
 
  	def commandData = parent.getCommandData(this.device.deviceNetworkId)
-	log.debug "setTo2Groups: ${commandData}"
+	log "setTo2Groups: ${commandData}", "debug"
     
 	def sceneID = commandData.deviceId
 
-	log.debug "${this.device.label}: setTo2Groups: sceneID = ${sceneID} "
-    log.debug "${this.device.label}: setTo2Groups: group1 = ${group1} "
+	log "${this.device.label}: setTo2Groups: sceneID = ${sceneID} ", "debug"
+    log "${this.device.label}: setTo2Groups: group1 = ${group1} ", "debug"
     
     String gPath = "/api/${commandData.username}/groups/${group1}/action"
 
@@ -131,7 +130,7 @@ def setTo2Groups ( group1, group2 ) {
 		])
 	)
 
-    log.debug "${this.device.label}: setTo2Groups: group2 = ${group2} "
+    log "${this.device.label}: setTo2Groups: group2 = ${group2} ", "debug"
     gPath = "/api/${commandData.username}/groups/${group2}/action"
 
     parent.sendHubCommand(new hubitat.device.HubAction(
@@ -149,7 +148,7 @@ def setTo2Groups ( group1, group2 ) {
 }
 
 def turnGroupOn(inGroupID) {
-	log.debug "Executing 'turnGroupOn ( ${inGroupID} )'"
+	log "Executing 'turnGroupOn ( ${inGroupID} )'", "trace"
 
     def commandData = parent.getCommandData(device.deviceNetworkId)
     
@@ -167,11 +166,12 @@ def turnGroupOn(inGroupID) {
 }
 
 def updateScene() {
-	log.debug "Updating scene!"
+	log "Updating scene!", "trace"
+    
     def commandData = parent.getCommandData(this.device.deviceNetworkId)
-	log.debug "${commandData}"
+	log "${commandData}", "debug"
     def sceneLights = this.device.currentValue("lights")
-    log.debug "sceneLights = ${sceneLights}"
+    log "sceneLights = ${sceneLights}", "debug"
     parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
@@ -185,11 +185,11 @@ def updateScene() {
 }
 
 def updateSceneFromDevice() {
-	log.trace "${this}: Update updateSceneFromDevice Reached."
+	log "${this}: Update updateSceneFromDevice Reached.", "trace"
 
     def sceneIDfromD = device.currentValue("sceneID")
 
-    log.debug "Retrieved sceneIDfromD: ${sceneIDfromD}."
+    log "Retrieved sceneIDfromD: ${sceneIDfromD}.", "debug"
 
 	String myScene = sceneIDfromD
 
@@ -200,8 +200,8 @@ def updateSceneFromDevice() {
 }
 
 def updateStatus(type, param, val) {
-
-	//log.debug "updating status: ${type}:${param}:${val}"
+	log "updating status: ${type}:${param}:${val}", "trace"
+    
 	if (type == "scene") {
 		if (param == "lights") {
 
@@ -213,7 +213,7 @@ def updateStatus(type, param, val) {
             
         } else if (param == "scheduleId") {
         
-           	"log.debug Should be updating scheduleId with value of ${val}"
+           	log "Should be updating scheduleId with value of ${val}", "debug"
            	sendEvent(name: "scheduleId", value: val, displayed:false, isStateChange: true)
                 
 		} else if (param == "schedule") {
@@ -222,13 +222,30 @@ def updateStatus(type, param, val) {
             
 		} else {                
 
-			log.debug("Unhandled parameter: ${param}. Value: ${val}")    
+			log "Unhandled parameter: ${param}. Value: ${val}", "debug"
         }
     }
 }
 
 def refresh() {
-	log.trace "refresh(): "
+	log "refresh(): ", "trace"
 	parent.doDeviceSync()
     configure()
+}
+
+def log(String text, String type = null){
+    
+   	if (type == "warn") {
+        log.warn "${text}"
+    } else if (type == "error") {
+        log.error "${text}"
+    } else if (parent.debugLogging) {
+        if (type == "info") {
+            log.info "${text}"
+        } else if (type == "trace") {
+    		log.trace "${text}"
+        } else {
+    		log.debug "${text}"
+        }
+	}
 }

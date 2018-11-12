@@ -14,6 +14,7 @@
  *
  *	Changelog:
  *  04/11/2018 xap-code fork for Hubitat
+ *  12/11/2018 Change debug logging setting to boolean
  */
  
 import groovy.json.*
@@ -53,18 +54,18 @@ def manageBridge(params) {
     }
 
     def bridge = getBridge(params.mac)
-	logMessage("Manage Bridge ${bridge}", "trace")
+	log("Manage Bridge ${bridge}", "trace")
     def ip = convertHexToIP(bridge.value.networkAddress)
-	logMessage("Manage Bridge IP Address ${ip}", "info")
+	log("Manage Bridge IP Address ${ip}", "info")
     def mac = params.mac
-	logMessage("Manage Bridge MAC Address ${mac}", "info")
+	log("Manage Bridge MAC Address ${mac}", "info")
     def bridgeDevice = getChildDevice(mac)
-	logMessage("Manage Bridge DeviceName is ${bridgeDevice}", "info")
+	log("Manage Bridge DeviceName is ${bridgeDevice}", "info")
     def title = "${bridgeDevice} ${ip}"
     def refreshInterval = 2
 
     if (!bridgeDevice) {
-        logMessage("Bridge device not found?", "warn")
+        log("Bridge device not found?", "warn")
         /* Error, bridge device doesn't exist? */
         return
     }
@@ -123,7 +124,7 @@ def manageBridge(params) {
 
 def linkBridge() {
     state.params.done = true
-    logMessage("linkBridge")
+    log("linkBridge")
     dynamicPage(name:"linkBridge") {
         section() {
             getLinkedBridges() << state.params.mac
@@ -154,10 +155,10 @@ def linkButton(params) {
     
     if (!params.linkDone) {
         if ((linkRefreshcount % 2) == 0) {
-        	logMessage("Sending Developer Request", "info")
+        	log("Sending Developer Request", "info")
             	sendDeveloperReq(params.mac)
         }
-        logMessage("linkButton ${params}")
+        log("linkButton ${params}")
         dynamicPage(name: "linkButton", refreshInterval: refreshInterval, nextPage: "linkButton") {
             section("Hue Bridge ${params.ip}") {
                 paragraph "Please press the link button on your Hue bridge."
@@ -168,18 +169,18 @@ def linkButton(params) {
         }
     } else {
         /* link success! create bridge device */
-        logMessage("Bridge linked!", "info")
-        logMessage("ssdp ${params.ssdpUSN}", "trace")
-        logMessage("username ${params.username}", "trace")
+        log("Bridge linked!", "info")
+        log("ssdp ${params.ssdpUSN}", "trace")
+        log("username ${params.username}", "trace")
         
         def bridge = getUnlinkedBridges().find{it?.key?.contains(params.ssdpUSN)}
-        logMessage("Bridge ${bridge}", "info")
+        log("Bridge ${bridge}", "info")
 
 	state.user = params.username
         state.host = params.ip + ":80"
-        logMessage("state.user = ${state.user} ******************", "trace")
-	logMessage("state.host = ${state.host} ******************", "trace")
-        logMessage("bridge.value.serialNumber = ${bridge.value.serialNumber} *****************", "trace")
+        log("state.user = ${state.user} ******************", "trace")
+	log("state.host = ${state.host} ******************", "trace")
+        log("bridge.value.serialNumber = ${bridge.value.serialNumber} *****************", "trace")
 
         def d = addChildDevice("info_fiend", "Hue B Smart Bridge", bridge.value.mac, bridge.value.hub, [label: "Hue B Smart Bridge (${params.ip}", username: "${params.username}", networkAddress: "${params.ip}", host: "${state.host}"])
 		
@@ -194,9 +195,9 @@ def linkButton(params) {
 
         bridge.value << ["bulbs" : [:], "groups" : [:], "scenes" : [:], "schedules" : [:]]
         getLinkedBridges() << bridge
-        logMessage("Bridge added to linked list", "info")
+        log("Bridge added to linked list", "info")
         getUnlinkedBridges().remove(params.ssdpUSN)
-        logMessage("Removed bridge from unlinked list", "info")
+        log("Removed bridge from unlinked list", "info")
 
         dynamicPage(name: "linkButton", nextPage: "Bridges") {
             section("Hue Bridge ${params.ip}") {
@@ -267,7 +268,7 @@ def bridges() {
     // Send bridge discovery request every 15 seconds
     if ((state.bridgeRefreshCount % 5) == 1) {
         discoverHueBridges()
-        logMessage("Bridge Discovery Sent - Version is 1.71", "warn")
+        log "Bridge Discovery Sent - Version is 1.71", "debug"
     } else {
         // if we're not sending bridge discovery, verify bridges instead
         verifyHueBridges()
@@ -277,9 +278,9 @@ def bridges() {
         section("Linked Bridges") {
             getLinkedBridges().sort { it.value.name }.each {
                 def ip = convertHexToIP(it.value.networkAddress)
-		    logMessage("Bridges Linked IP Address ${ip}")
+		    log("Bridges Linked IP Address ${ip}")
                 def mac = "${it.value.mac}"
-		    logMessage("Bridges Linked MAC Address ${mac}")
+		    log("Bridges Linked MAC Address ${mac}")
                 state.mac = mac
                 def title = "Hue Bridge ${ip}"
                 href(name:"manageBridge ${mac}", page:"manageBridge", title: title, description: "", params: [mac: mac])
@@ -289,9 +290,9 @@ def bridges() {
             paragraph "Searching for Hue bridges. They will appear here when found. Please wait."
             getVerifiedBridges().sort { it.value.name }.each {
                 def ip = convertHexToIP(it.value.networkAddress)
-		    logMessage("Bridges UnLinked IP Address ${ip}")
+		    log("Bridges UnLinked IP Address ${ip}")
                 def mac = "${it.value.mac}"
-		    logMessage("Bridges UnLinked MAC Address ${mac}")
+		    log("Bridges UnLinked MAC Address ${mac}")
                 def title = "Hue Bridge ${ip}"
                 href(name:"linkBridge ${mac}", page:"linkButton", title: title, description: "", params: [mac: mac, ip: ip, ssdpUSN: it.value.ssdpUSN])
             }
@@ -303,13 +304,12 @@ def bridges() {
 }
 
 def settings() {
-        return dynamicPage(name:"settings", title: "Settings", nexdtPage: "Bridges") {
-            section() {
-                paragraph "Debugging Toggle - Please Note - If you want support this will need to be turned On"
-		        input(name: "debug", type: "enum", title: "Debug Off Or On", defaultValue: "On", options: ["On","Off"])
-            	href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
-            }
-        } 
+    return dynamicPage(name:"settings", title: "Settings", nexdtPage: "Bridges") {
+        section() {
+            input(name: "debugLogging", type: "bool", title: "Enable/disable debug logging", defaultValue: false, required: false)
+            href(name:"Back", page:"Bridges", title:"", description: "Back to main page")
+        }
+    } 
 }
 
 def deleteBridge(params) {
@@ -322,7 +322,7 @@ def deleteBridge(params) {
 	
 	def bridge = getBridge(params.mac)
     def d = getChildDevice(params.mac)
-    logMessage("Deleting bridge ${d.currentValue('networkAddress')} (${params.mac})", "warn")
+    log("Deleting bridge ${d.currentValue('networkAddress')} (${params.mac})", "warn")
     
 	def success = true
 	def devices = getChildDevices()
@@ -330,13 +330,13 @@ def deleteBridge(params) {
 	devices.each {
     	def devId = it.deviceNetworkId
         if (devId.contains(params.mac) && devId != params.mac) {
-        	logMessage("Removing ${devId}", "warn")
+        	log("Removing ${devId}", "warn")
 			try {
     	    	deleteChildDevice(devId)
 			} catch (hubitat.exception.NotFoundException e) {
-	        	logMessage("${devId} already deleted?", "warn")
+	        	log("${devId} already deleted?", "warn")
 			} catch (hubitat.exception.ConflictException e) {
-	        	logMessage("${devId} still in use", "error")
+	        	log("${devId} still in use", "error")
 				text = text + "${it.label} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
 		        success = false
 			}
@@ -347,9 +347,9 @@ def deleteBridge(params) {
         	unsubscribe(d)
     		deleteChildDevice(params.mac)
 		} catch (hubitat.exception.NotFoundException e) {
-	    	logMessage("${params.mac} already deleted?", "waren")
+	    	log("${params.mac} already deleted?", "waren")
 		} catch (hubitat.exception.ConflictException e) {
-	    	logMessage("${params.mac} still in use", "error")
+	    	log("${params.mac} still in use", "error")
 			text = text + "${params.mac} is still in use. Remove from any SmartApps or Dashboards, then try again.\n"
 			success = false
 		}
@@ -398,7 +398,7 @@ def chooseBulbs(params) {
     }
 
 	if (params.add) {
-	    logMessage("Adding ${params.add}", "info")
+	    log("Adding ${params.add}", "info")
         def bulbId = params.add
 		params.add = null
         def b = bridge.value.bulbs[bulbId]
@@ -415,7 +415,7 @@ def chooseBulbs(params) {
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
 			} catch (Exception e) {
-            	logMessage("${devId} already created", "warn")
+            	log("${devId} already created", "warn")
 			}    
 	    }
 		else if (b.type.equalsIgnoreCase("Color Temperature Light")) {
@@ -429,7 +429,7 @@ def chooseBulbs(params) {
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
            		} catch (Exception e) {
-                logMessage("${devId} already created", "warn")
+                log("${devId} already created", "warn")
             		}
 		}
 		else {
@@ -445,13 +445,13 @@ def chooseBulbs(params) {
                 addedBulbs[bulbId] = b
                 availableBulbs.remove(bulbId)
 			} catch (Exception e) {
-	            logMessage("${devId} already created", "warn")
+	            log("${devId} already created", "warn")
 			}
 		}
 	}
     
     if (params.remove) {
-    	logMessage("Removing ${params.remove}", "info")
+    	log("Removing ${params.remove}", "info")
 		def devId = params.remove
         params.remove = null
 		def bulbId = devId.split("BULB")[1]
@@ -460,11 +460,11 @@ def chooseBulbs(params) {
             addedBulbs.remove(bulbId)
             availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
 		} catch (hubitat.exception.NotFoundException e) {
-        	logMessage("${devId} already deleted", "warn")
+        	log("${devId} already deleted", "warn")
             addedBulbs.remove(bulbId)
             availableBulbs[bulbId] = bridge.value.bulbs[bulbId]
 		} catch (hubitat.exception.ConflictException e) {
-        	logMessage("${devId} still in use", "error")
+        	log("${devId} still in use", "error")
             errorText = "Bulb ${bridge.value.bulbs[bulbId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }     
     }
@@ -519,12 +519,12 @@ def chooseScenes(params) {
 
     
 	if (params.add) {
-		logMessage("Adding ${params.add}", "info")
+		log("Adding ${params.add}", "info")
         	def sceneId = params.add
 		params.add = null
         	def s = bridge.value.scenes[sceneId]
-        	logMessage("adding scene ${s.label}.  Are lights assigned? lights = ${s.lights}")
-		logMessage("Does scene ${s.label} have lightStates?  lightStates = ${s.lightStates}")
+        	log("adding scene ${s.label}.  Are lights assigned? lights = ${s.lights}")
+		log("Does scene ${s.label} have lightStates?  lightStates = ${s.lightStates}")
         
          
 		def devId = "${params.mac}/SCENE${sceneId}"
@@ -539,12 +539,12 @@ def chooseScenes(params) {
 			addedScenes[sceneId] = s
 			availableScenes.remove(sceneId)
 		} catch (Exception e) {
-            	logMessage("${devId} already created", "warn")
+            	log("${devId} already created", "warn")
 	    }
 	}
     
     if (params.remove) {
-    	logMessage("Removing ${params.remove}", "info")
+    	log("Removing ${params.remove}", "info")
 		def devId = params.remove
         params.remove = null
 		def sceneId = devId.split("SCENE")[1]
@@ -554,11 +554,11 @@ def chooseScenes(params) {
             availableScenes[sceneId] = bridge.value.scenes[sceneId]
             
 		} catch (hubitat.exception.NotFoundException e) {
-        	logMessage("${devId} already deleted", "warn")
+        	log("${devId} already deleted", "warn")
 			addedScenes.remove(sceneId)
             availableScenes[sceneId] = bridge.value.scenes[sceneId]
 		} catch (hubitat.exception.ConflictException e) {
-        	logMessage("${devId} still in use", "error")
+        	log("${devId} still in use", "error")
             errorText = "Scene ${bridge.value.scenes[sceneId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }
     }
@@ -605,7 +605,7 @@ def chooseGroups(params) {
 	def addedGroups = [:]
     def availableGroups = [:]
     def user = state.user
-    logMessage("=================== ${state.user} ================", "info")
+    log("=================== ${state.user} ================", "info")
     bridge.value.groups.each {
 		def devId = "${params.mac}/GROUP${it.key}"
 		def name = it.value.name
@@ -619,18 +619,18 @@ def chooseGroups(params) {
     }
 
 	if (params.add) {
-	    logMessage("Adding ${params.add}", "info")
+	    log("Adding ${params.add}", "info")
         def groupId = params.add
-        logMessage("ADDING GROUP: params.mac = ${params.mac} / groupId = ${groupId}")
+        log("ADDING GROUP: params.mac = ${params.mac} / groupId = ${groupId}")
 		params.add = null
         def g = bridge.value.groups[groupId]
-        logMessage("ADDING GROUP: g / bridge.value.groups[groupId] = ${g}.  Are lights assigned? lights = ${g.lights}")
+        log("ADDING GROUP: g / bridge.value.groups[groupId] = ${g}.  Are lights assigned? lights = ${g.lights}")
 		def devId = "${params.mac}/GROUP${groupId}"
         
         if (g.action.hue) {
 			try { 
 				def d = addChildDevice("info_fiend", "Hue B Smart Group", devId, bridge.value.hub, ["label": g.label, "type": g.type, "groupType": "Color Group", "allOn": g.all_on, "anyOn": g.any_on, "lights": g.lights])
-	    	    logMessage("adding group ${d}")	//  Are lights assigned? lights = ${g.lights}"     
+	    	    log("adding group ${d}")	//  Are lights assigned? lights = ${g.lights}"     
             	["bri", "sat", "hue", "on", "xy", "ct", "colormode", "effect"].each { p ->
                 		d.updateStatus("action", p, g.action[p])                    
 				}
@@ -641,13 +641,13 @@ def chooseGroups(params) {
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
 			} catch (Exception e) {
-    	        	logMessage("${devId} already created", "warn")
+    	        	log("${devId} already created", "warn")
 	    	}
 		}
        else if (g.action.ct) {
 			try { 
 				def d = addChildDevice("info_fiend", "Hue B Smart White Ambiance Group", devId, bridge.value.hub, ["label": g.label, "type": g.type, "groupType": "Ambience Group", "allOn": g.all_on, "anyOn": g.any_on, "lights": g.lights])
-	    	    logMessage("adding group ${d}")	//  Are lights assigned? lights = ${g.lights}"     
+	    	    log("adding group ${d}")	//  Are lights assigned? lights = ${g.lights}"     
             	["bri", "sat", "on", "ct", "colormode", "effect"].each { p ->
                 		d.updateStatus("action", p, g.action[p])                    
 				}
@@ -658,13 +658,13 @@ def chooseGroups(params) {
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
 			} catch (Exception e) {
-    	        	logMessage("${devId} already created", "warn")
+    	        	log("${devId} already created", "warn")
 	    	}
 		}
         else {
 			try { 
 				def d = addChildDevice("info_fiend", "Hue B Smart Lux Group", devId, bridge.value.hub, ["label": g.label, "type": g.type, "groupType": "Lux Group", "allOn": g.all_on, "anyOn": g.any_on, "lights": g.lights])
-	    	    logMessage("adding group ${d}")  // Are lights assigned? lights = ${g.lights}"     
+	    	    log("adding group ${d}")  // Are lights assigned? lights = ${g.lights}"     
             	["bri", "on", "effect"].each { p ->
                 		d.updateStatus("action", p, g.action[p])                    
 				}
@@ -675,13 +675,13 @@ def chooseGroups(params) {
 				addedGroups[groupId] = g
 				availableGroups.remove(groupId)
 			} catch (Exception e) {
-    	        	logMessage("${devId} already created", "warn")
+    	        	log("${devId} already created", "warn")
 	    	}
 		}        
     }
     
     if (params.remove) {
-    	logMessage("Removing ${params.remove}", "info")
+    	log("Removing ${params.remove}", "info")
 		def devId = params.remove
         params.remove = null
 		def groupId = devId.split("GROUP")[1]
@@ -690,11 +690,11 @@ def chooseGroups(params) {
             addedGroups.remove(groupId)
             availableGroups[groupId] = bridge.value.groups[groupId]
 		} catch (hubitat.exception.NotFoundException e) {
-        	logMessage("${devId} already deleted", "warn")
+        	log("${devId} already deleted", "warn")
             addedGroups.remove(groupId)
             availableGroups[groupId] = bridge.value.groups[groupId]
 		} catch (hubitat.exception.ConflictException e) {
-        	logMessage("${devId} still in use", "error")
+        	log("${devId} still in use", "error")
             errorText = "Group ${bridge.value.groups[groupId].label} is still in use. Remove from any SmartApps or Dashboards, then try again."
         }
     }
@@ -722,22 +722,22 @@ def chooseGroups(params) {
 }
 
 def installed() {
-    logMessage("Installed with settings: ${settings}", "info")
+    log("Installed with settings: ${settings}", "info")
     initialize()
 }
 
 def uninstalled() {
-    logMessage("Uninstalling", "info")
+    log("Uninstalling", "info")
     state.installed = false
 }
 
 def updated() {
-    logMessage("Updated with settings: ${settings}", "info")
+    log("Updated with settings: ${settings}", "info")
     initialize()
 }
 
 def initialize() {
-    logMessage("Initialize")
+    log("Initialize")
     unsubscribe()
     unschedule()
     state.schedules = []
@@ -761,7 +761,7 @@ def initialize() {
 def itemDiscoveryHandler(evt) {
 
     def data = parseJson(evt.data)
-    logMessage("data = $data", "trace")
+    log("data = $data", "trace")
 
     def bulbs = data[0]
 //    	log.debug "bulbs = ${bulbs}"
@@ -785,7 +785,7 @@ def itemDiscoveryHandler(evt) {
     
 	bridge.value.bulbs = bulbs
     bridge.value.groups = groups
-    logMessage("Groups = ${groups}", "info")
+    log("Groups = ${groups}", "info")
    	bridge.value.scenes = scenes
     bridge.value.schedules = schedules
     
@@ -797,18 +797,18 @@ def itemDiscoveryHandler(evt) {
     
     /* update existing devices */
 	def devices = getChildDevices()
-    logMessage("devices = ${devices}", "info")
+    log("devices = ${devices}", "info")
 	devices.each {
-    	logMessage("device = ${it}", "info")
+    	log("device = ${it}", "info")
     	def devId = it.deviceNetworkId
         
 	    if (devId.contains(mac) && devId.contains("/")) {
     		if (it.deviceNetworkId.contains("BULB")) {
-	            logMessage("contains BULB / DNI = ${it.deviceNetworkId}: ${it}", "trace")
+	            log("contains BULB / DNI = ${it.deviceNetworkId}: ${it}", "trace")
    	            def bulbId = it.deviceNetworkId.split("/")[1] - "BULB"
-       	        logMessage("bulbId = ${bulbId}", "trace")
+       	        log("bulbId = ${bulbId}", "trace")
                 def bBulb = bridge.value.bulbs[bulbId]
-                logMessage("bridge.value.bulbs[bulbId] = ${bBulb}", "trace")
+                log("bridge.value.bulbs[bulbId] = ${bBulb}", "trace")
                 if ( bBulb != null ) {  // If user removes bulb from hue without removing it from smartthings,
                                         // getChildDevices() will still return the scene as part of the array as null, so we need to check for it to prevent crashing.
 				    def type = bBulb.type 	// bridge.value.bulbs[bulbId].type
@@ -849,19 +849,19 @@ def itemDiscoveryHandler(evt) {
             }
 
             if (it.deviceNetworkId.contains("SCENE")) {
-            	logMessage("it.deviceNetworkId contains SCENE = ${it.deviceNetworkId}", "trace")
-				logMessage("contains SCENE / DNI = ${it.deviceNetworkId}", "trace")
+            	log("it.deviceNetworkId contains SCENE = ${it.deviceNetworkId}", "trace")
+				log("contains SCENE / DNI = ${it.deviceNetworkId}", "trace")
     	        def sceneId = it.deviceNetworkId.split("/")[1] - "SCENE"
-        	    logMessage("sceneId = ${sceneId}", "trace")
+        	    log("sceneId = ${sceneId}", "trace")
                 def sceneFromBridge = bridge.value.scenes[sceneId]
-                logMessage("sceneFromBridge = ${sceneFromBridge}", "trace")
+                log("sceneFromBridge = ${sceneFromBridge}", "trace")
                 if ( sceneFromBridge != null ) { // If user removes scene from hue without removing it from smartthings,
                     def sceneLights = []         // getChildDevices() will still return the scene as part of the array as null, so we need to check for it to prevent crashing.
                     sceneLights = sceneFromBridge.lights
                     def scenelightStates = sceneFromBridge.lightStates
 
-	                logMessage("bridge.value.scenes[${sceneId}].lights = ${sceneLights}", "trace")
-				    logMessage("bridge.value.scenes[${sceneId}].lightStates = ${scenelightStates}", "trace")
+	                log("bridge.value.scenes[${sceneId}].lights = ${sceneLights}", "trace")
+				    log("bridge.value.scenes[${sceneId}].lightStates = ${scenelightStates}", "trace")
 
             	    if (bridge.value.scenes[sceneId].lights) {
 					    it.updateStatus("scene", "lights", bridge.value.scenes[sceneId].lights)
@@ -898,10 +898,10 @@ def locationHandler(evt) {
                 state.params.linkDone = true
                 state.params.username = body.success[0].username
             } else if (body.error && body.error[0] && body.error[0].description) {
-                logMessage("error: ${body.error[0].description}", "error")
+                log("error: ${body.error[0].description}", "error")
             } else {
-                logMessage("unknown response: ${headerString}", "error")
-                logMessage("unknown response: ${body}", "error")
+                log("unknown response: ${headerString}", "error")
+                log("unknown response: ${body}", "error")
             }
         }
     }
@@ -911,7 +911,7 @@ def locationHandler(evt) {
  * HUE BRIDGE COMMANDS
  **/
 private discoverHueBridges() {
-    logMessage("Sending bridge discovery", "info")
+    log("Sending bridge discovery", "info")
     sendHubCommand(new hubitat.device.HubAction("lan discovery urn:schemas-upnp-org:device:basic:1", hubitat.device.Protocol.LAN))
 }
 
@@ -925,7 +925,7 @@ private verifyHueBridges() {
 }	
 
 private verifyHueBridge(String deviceNetworkId, String host) {
-	logMessage("Verify Hue Bridge ${deviceNetworkId}", "info")
+	log("Verify Hue Bridge ${deviceNetworkId}", "info")
 	sendHubCommand(new hubitat.device.HubAction([
 			method: "GET",
 			path: "/description.xml",
@@ -939,14 +939,14 @@ private verifyHueBridge(String deviceNetworkId, String host) {
  * HUE BRIDGE RESPONSES
  **/
 private processDiscoveryResponse(parsedEvent) {
-	logMessage("Discovery Response is ${parsedEvent}", "trace")
-    logMessage("Discovered bridge ${parsedEvent.mac} (${convertHexToIP(parsedEvent.networkAddress)})", "info")
+	log("Discovery Response is ${parsedEvent}", "trace")
+    log("Discovered bridge ${parsedEvent.mac} (${convertHexToIP(parsedEvent.networkAddress)})", "info")
 
     def bridge = getUnlinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} 
     if (!bridge) { bridge = getLinkedBridges().find{it?.key?.contains(parsedEvent.ssdpUSN)} }
     if (bridge) {
         /* have already discovered this bridge */
-        logMessage("Previously found bridge discovered", "trace")
+        log("Previously found bridge discovered", "trace")
         /* update IP address */
         if (parsedEvent.networkAddress != bridge.value.networkAddress) {
         	bridge.value.networkAddress = parsedEvent.networkAddress
@@ -957,23 +957,23 @@ private processDiscoveryResponse(parsedEvent) {
         }
     } else { 
     
-        logMessage("Found new bridge", "info")
+        log("Found new bridge", "info")
         state.unlinked_bridges << ["${parsedEvent.ssdpUSN}":parsedEvent]
    }
 }
 
 private processVerifyResponse(hubitat.device.HubResponse hubResponse) {
-    logMessage("description.xml response (application/xml)", "trace")
+    log("description.xml response (application/xml)", "trace")
 	def body = hubResponse.xml
-    logMessage("Processing verify response", "info")
+    log("Processing verify response", "info")
     if (body?.device?.modelName?.text().startsWith("Philips hue bridge")) {
-        logMessage(body?.device?.UDN?.text())
+        log(body?.device?.UDN?.text())
         def bridge = getUnlinkedBridges().find({it?.key?.contains(body?.device?.UDN?.text())})
         if (bridge) {
-            logMessage("Found Bridge!", "info")
+            log("Found Bridge!", "info")
             bridge.value << [name:body?.device?.friendlyName?.text(), serialNumber:body?.device?.serialNumber?.text(), verified: true, itemsDiscovered: false]
         } else {
-            logMessage(" /description.xml returned a bridge that didn't exist", "error")
+            log(" /description.xml returned a bridge that didn't exist", "error")
         }
     }
 }
@@ -981,12 +981,12 @@ private processVerifyResponse(hubitat.device.HubResponse hubResponse) {
 
 private sendDeveloperReq(mac) {
     def token = app.id
-    logMessage("MAC Address is ${mac}", "info")
+    log("MAC Address is ${mac}", "info")
     
     def bridge = getBridge(mac)
     def host = bridge.value.networkAddress
     host = "${convertHexToIP(host)}" + ":80"
-    logMessage("IP Address is ${host}", "info")
+    log("IP Address is ${host}", "info")
     
 	    sendHubCommand(new hubitat.device.HubAction([
 			method: "POST",
@@ -999,7 +999,7 @@ private sendDeveloperReq(mac) {
 
 void usernameHandler(hubitat.device.HubResponse hubResponse) {
 		def body = hubResponse.json
-    logMessage("Button Pressed - Link Done - Save Username (${body})", "info")
+    log("Button Pressed - Link Done - Save Username (${body})", "info")
 		if (body.success != null) {
 			if (body.success[0] != null) {
 				if (body.success[0].username)
@@ -1010,7 +1010,7 @@ void usernameHandler(hubitat.device.HubResponse hubResponse) {
 			}
 		} else if (body.error != null) {
 			//TODO: handle retries...
-			logMessage("ERROR: application/json ${body.error}", "error")
+			log("ERROR: application/json ${body.error}", "error")
 		}
 	}
 
@@ -1044,8 +1044,8 @@ def getCommandHub(id) {
     def ipAddr
     def userName
  
-    logMessage("In getCommandData()", "trace")
-    logMessage("id = ${id}", "trace")
+    log("In getCommandData()", "trace")
+    log("id = ${id}", "trace")
     
     if( id.contains("/") ) {
        devId = ids[1] - "BULB" - "GROUP" - "SCENE" - "SCHEDULE"
@@ -1063,24 +1063,24 @@ def getCommandHub(id) {
                   username: "${userName}",
                   deviceId: "${devId}",  ]
     
-    logMessage("Out getCommandData = ${result}", "trace")
+    log("Out getCommandData = ${result}", "trace")
     
     return result
 }
 
 def getGLightsDNI(groupId,bridgemac) {
-	logMessage("getGLightsDNI( from Group ${groupId} )", "trace")
+	log("getGLightsDNI( from Group ${groupId} )", "trace")
     //def mac = state.mac
     def mac = bridgemac
     //log.debug "${mac}"
     def bridge = getBridge(mac)
   
     def groupLights = bridge.value.groups[groupId].lights
-    logMessage("bridge.value.groups[groupId].lights = ${groupLights}", "trace")
+    log("bridge.value.groups[groupId].lights = ${groupLights}", "trace")
     
     groupLights = groupLights - "[" - "]"
 	def gLights = groupLights 
-    logMessage("gLights = ${gLights}", "trace")
+    log("gLights = ${gLights}", "trace")
 	
     def gLightDevId
 	def gLightDNI 
@@ -1088,25 +1088,25 @@ def getGLightsDNI(groupId,bridgemac) {
     
     gLights.each { gl ->
     	gLightDevId = "${mac}/BULB${gl}"
-        logMessage("Light devId = ${gLightDevId}", "trace")
+        log("Light devId = ${gLightDevId}", "trace")
     	gLightDNI = getChildDevice(gLightDevId)
         gLightsDNI << gLightDNI
     }    
-    logMessage("gLightsDNI = ${gLightsDNI}", "trace")
+    log("gLightsDNI = ${gLightsDNI}", "trace")
     
     return gLightsDNI
 }    
         
 def getSLightsDNI(sceneId) {
-	logMessage("getSLightsDNI( from Scene ${sceneId} )", "trace")
+	log("getSLightsDNI( from Scene ${sceneId} )", "trace")
     def mac = state.mac
     def bridge = getBridge(mac)
     def sceneLights = bridge.value.scene[sceneId].lights
-    logMessage("bridge.value.scene[sceneId].lights = ${sceneLights}", "trace")
+    log("bridge.value.scene[sceneId].lights = ${sceneLights}", "trace")
     
     sceneLights = sceneLights - "[" - "]"
 	def sLights = sceneLights 
-    logMessage("sLights = ${sLights}", "trace")
+    log("sLights = ${sLights}", "trace")
 	
     def sLightDevId
 	def sLightDNI 
@@ -1114,11 +1114,11 @@ def getSLightsDNI(sceneId) {
     
     sLights.each { sl ->
     	sLightDevId = "${mac}/BULB${gl}"
-        logMessage("Light devId = ${sLightDevId}", "trace")
+        log("Light devId = ${sLightDevId}", "trace")
     	sLightDNI = getChildDevice(sLightDevId)
         sLightsDNI << sLightDNI
     }    
-    logMessage("sLightsDNI = ${sLightsDNI}", "trace")
+    log("sLightsDNI = ${sLightsDNI}", "trace")
     
     return sLightsDNI
 } 
@@ -1132,7 +1132,7 @@ private String convertHexToIP(hex) {
 }
 
 def scaleLevel(level, fromST = false, max = 254) {
-	logMessage("ScaleLevel( ${level}, ${fromST}, ${max} )", "info")
+	log("ScaleLevel( ${level}, ${fromST}, ${max} )", "info")
     /* scale level from 0-254 to 0-100 */
     
     if (fromST) {
@@ -1144,17 +1144,17 @@ def scaleLevel(level, fromST = false, max = 254) {
         	return Math.round( level * 100 / max )
 		}
     }    
-    logMessage("scaleLevel returned ${scaled}", "info")
+    log("scaleLevel returned ${scaled}", "info")
     
 }
 
 def parse(desc) {
-    logMessage("parse")
+    log("parse")
 }
 
 def doDeviceSync(inItems = null) {
 	state.limitation = inItems
-	logMessage("Doing Hue Device Sync!", "info")
+	log("Doing Hue Device Sync!", "info")
     state.doingSync = true
     try {
 		subscribe(location, null, locationHandler, [filterEvents:false])
@@ -1170,22 +1170,19 @@ def doDeviceSync(inItems = null) {
     state.doingSync = false
 }
 
-def logMessage(String text, String type = null){
-	if(debug == "On" || debug == "" || debug == null){
-    	if(type == "" || type == null || type == "debug"){
-    		log.debug "${text}"
-    	}
-    	else if(type == "trace"){
+def log(String text, String type = null){
+    
+   	if (type == "warn") {
+        log.warn "${text}"
+    } else if (type == "error") {
+        log.error "${text}"
+    } else if (debugLogging) {
+        if (type == "info") {
+            log.info "${text}"
+        } else if (type == "trace") {
     		log.trace "${text}"
-    	}
-    	else if(type == "info"){
-    		log.info "${text}"
-    	}
-    	else if(type == "warn"){
-    		log.warn "${text}"
-    	}
-    	else{
-    		log.error "${text}"
+        } else {
+    		log.debug "${text}"
+        }
 	}
-  }  
 }

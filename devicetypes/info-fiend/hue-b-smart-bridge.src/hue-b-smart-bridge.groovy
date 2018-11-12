@@ -14,22 +14,23 @@
  *
  *	Changelog:
  *  04/11/2018 xap-code fork for Hubitat
+ *  12/11/2018 Remove healthcheck methods not used in Hubitat
+ *  12/11/2018 Link logging to smart app setting
  */
 
 import groovy.json.*
 
 metadata {
-	definition (name: "Hue B Smart Bridge", namespace: "info_fiend", author: "Anthony Pastor") {
-	capability "Actuator"
-	capability "Health Check"
+    definition (name: "Hue B Smart Bridge", namespace: "info_fiend", author: "Anthony Pastor") {
+        capability "Actuator"
 
-	attribute "serialNumber", "string"
-	attribute "networkAddress", "string"
-	attribute "status", "string"
-	attribute "username", "string"
-	attribute "host", "string"
+        attribute "serialNumber", "string"
+        attribute "networkAddress", "string"
+        attribute "status", "string"
+        attribute "username", "string"
+        attribute "host", "string"
         
-		command "discoverItems"
+        command "discoverItems"
         command "discoverBulbs"
         command "discoverGroups"
         command "discoverScenes"
@@ -37,24 +38,23 @@ metadata {
         command "pollBulbs"
         command "pollGroups"
         command "pollScenes"
-        
 	}
 }
 
 void installed() {
-	log.debug "Installed with settings: ${settings}"
+	log "Installed with settings: ${settings}", "info"
 	sendEvent(name: "DeviceWatch-Enroll", value: "{\"protocol\": \"LAN\", \"scheme\":\"untracked\", \"hubHardwareId\": \"${device.hub.hardwareID}\"}")
 	initialize()
 }
 
 def updated() {
-	log.debug "Updated with settings: ${settings}"
+	log "Updated with settings: ${settings}", "info"
 	initialize()
 }
 
 def initialize() {
     def commandData = parent.getCommandData(device.deviceNetworkId)
-    log.debug "Initialize Bridge ${commandData}"
+    log "Initialize Bridge ${commandData}", "debug"
     sendEvent(name: "idNumber", value: commandData.deviceId, displayed:true, isStateChange: true)
     sendEvent(name: "networkAddress", value: commandData.ip, displayed:false, isStateChange: true)
     sendEvent(name: "username", value: commandData.username, displayed:false, isStateChange: true)
@@ -65,7 +65,7 @@ def initialize() {
 
 
 def discoverItems(inItems = null) {
-	log.trace "Bridge discovering all items on Hue hub."
+	log "Bridge discovering all items on Hue hub.", "trace"
 	
 	if (state.initialize != true ) { initialize() }
  	if (state.user == null ) { initialize() }
@@ -73,8 +73,8 @@ def discoverItems(inItems = null) {
 	def host = state.host
 	def username = state.userName
 
-  	log.debug "*********** ${host} ********"
-	log.debug "*********** ${username} ********"
+  	log "*********** ${host} ********", "debug"
+	log "*********** ${username} ********", "debug"
 	def result 
         
     if (!inItems) {
@@ -88,11 +88,10 @@ def discoverItems(inItems = null) {
     }    
                  
 	return result
-
 }
 
 def pollItems() {
-	log.trace "pollItems: polling state of all items from Hue hub."
+	log "pollItems: polling state of all items from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -108,7 +107,7 @@ def pollItems() {
 }
 
 def discoverBulbs() {
-	log.trace "discoverBulbs: discovering bulbs from Hue hub."
+	log "discoverBulbs: discovering bulbs from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -125,7 +124,7 @@ def discoverBulbs() {
 }
 
 def pollBulbs() {
-	log.trace "ollBulbs: polling bulbs state from Hue hub."
+	log "ollBulbs: polling bulbs state from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -141,7 +140,7 @@ def pollBulbs() {
 }
 
 def discoverGroups() {
-	log.debug("discoverGroups: discovering groups from Hue hub.")
+	log "discoverGroups: discovering groups from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -158,7 +157,7 @@ def discoverGroups() {
 }
 
 def pollGroups() {
-	log.trace "pollGroups: polling groups state from Hue hub."
+	log "pollGroups: polling groups state from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -174,7 +173,7 @@ def pollGroups() {
 }
 
 def pollScenes() {
-	log.trace "pollGroups: polling scenes state from Hue hub."
+	log "pollGroups: polling scenes state from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
@@ -191,7 +190,7 @@ def pollScenes() {
 
 def handleParse(desc) {
 
-	log.trace "handleParse()"
+    log "handleParse(${desc})", "trace"
 	parse(desc)
 
 }
@@ -201,7 +200,7 @@ def handleParse(desc) {
 
 def parse(String description) {
 
-	//log.trace "parse()"
+    log "parse(${description})", "trace"
 	
 	def parsedEvent = parseLanMessage(description)
 	if (parsedEvent.headers && parsedEvent.body) {
@@ -211,10 +210,10 @@ def parse(String description) {
 			def bridge = parent.getBridge(parsedEvent.mac)
             def group 
 			def commandReturn = []
-            log.trace "Version 1.71"
+            log "Version 1.71", "trace"
 			/* responses from bulb/group/scene/ command. Figure out which device it is, then pass it along to the device. */
 			if (body[0] != null && body[0].success != null) {
-            	log.trace "${body[0].success}"
+            	log "${body[0].success}", "trace"
 				body.each{
 					it.success.each { k, v ->
 						def spl = k.split("/")
@@ -224,12 +223,12 @@ def parse(String description) {
                         def groupScene
 						
 						if (spl[4] == "scene" || it.toString().contains( "lastupdated") ) {	
-							log.trace "HBS Bridge:parse:scene - msg.body == ${body}"
+							log "HBS Bridge:parse:scene - msg.body == ${body}", "trace"
                    			devId = bridge.value.mac + "/SCENE" + v
 	                        d = parent.getChildDevice(devId)
     	                    groupScene = spl[2]
                             d.updateStatus(spl[3], spl[4], v) 
-							log.debug "Scene ${d.label} successfully run on group ${groupScene}."
+							log "Scene ${d.label} successfully run on group ${groupScene}.", "debug"
 							//parent.doDeviceSync("bulbs")
 
                     	// GROUPS
@@ -246,7 +245,7 @@ def parse(String description) {
                             	gLights.each { gl ->
                              			if(gl != null){
                             			gl.updateStatus("state", spl[4], v)
-                                		log.debug "GLight ${gl}"
+                                		log "GLight ${gl}", "trace"
 										}
                             }
                             
@@ -257,14 +256,14 @@ def parse(String description) {
 							d = parent.getChildDevice(devId)
 	                    	d.updateStatus(spl[3], spl[4], v)
 						} else {
-							log.warn "Response contains unknown device type ${ spl[1] } ."                                               	            
+							log "Response contains unknown device type ${ spl[1] } .", "warn"
 						}
                         
                         commandReturn
 						}
 					}	
 			} else if (body[0] != null && body[0].error != null) {
-				log.warn "Error: ${body}"
+				log "Error: ${body}", "warn"
 			} else if (bridge) {
             	
 				def bulbs = [:] 
@@ -282,7 +281,6 @@ def parse(String description) {
 					state.groups = groups
 				
 	            	body.scenes?.each { k, v -> 
-                   		//log.trace "k=${k} and v=${v}"
                       	scenes[k] = [id: k, label: v.name, type: "scene", lights: v.lights]
                    	}
                   	state.scenes = scenes
@@ -294,9 +292,26 @@ def parse(String description) {
 			}
 			
 		} else {
-			log.debug("Unrecognized messsage: ${parsedEvent.body}")
+			log "Unrecognized messsage: ${parsedEvent.body}", "warn"
 		}
 		
 	}
 		return []
+}
+
+def log(String text, String type = null){
+    
+   	if (type == "warn") {
+        log.warn "${text}"
+    } else if (type == "error") {
+        log.error "${text}"
+    } else if (parent.debugLogging) {
+        if (type == "info") {
+            log.info "${text}"
+        } else if (type == "trace") {
+    		log.trace "${text}"
+        } else {
+    		log.debug "${text}"
+        }
+	}
 }
