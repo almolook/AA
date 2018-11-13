@@ -16,6 +16,7 @@
  *  04/11/2018 xap-code fork for Hubitat
  *  12/11/2018 Link logging to smart app setting
  *  12/11/2018 Change flash methods to match bulb
+ *  13/11/2018 Fix bug in flash methods
  */
 preferences {
 	input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)", defaultValue: 2)   
@@ -402,7 +403,7 @@ def flashOnce() {
     parent.sendHubCommand(new hubitat.device.HubAction(
         [
             method: "PUT",
-            path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+            path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
             headers: [
                 host: "${commandData.ip}"
             ],
@@ -427,7 +428,7 @@ def flashOn() {
     parent.sendHubCommand(new hubitat.device.HubAction(
         [
             method: "PUT",
-            path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+            path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
             headers: [
                 host: "${commandData.ip}"
             ],
@@ -444,7 +445,7 @@ def flashOff() {
 	parent.sendHubCommand(new hubitat.device.HubAction(
     	[
         	method: "PUT",
-			path: "/api/${commandData.username}/lights/${commandData.deviceId}/state",
+			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
 	        headers: [
 	        	host: "${commandData.ip}"
 			],
