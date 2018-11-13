@@ -14,7 +14,7 @@
  *
  *	Changelog:
  *  04/11/2018 xap-code fork for Hubitat
- *  12/11/2018 Link logging to smart app setting
+ *  12/11/2018 Link logging to parent app setting
  *  12/11/2018 Change flash methods to match bulb
  *  13/11/2018 Fix bug in flash methods
  */
