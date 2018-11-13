@@ -16,8 +16,8 @@
  *
  *	Changelog:
  *  05/11/2018 xap-code fork for Hubitat
- *  12/11/2018 Link logging to app setting
- *  13/11/2018 Remove non CT capabilities and methods
+ *  12/11/2018 Link logging to parent app setting
+ *  13/11/2018 Remove color capabilities and methods
  */
 preferences {
 	input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)", defaultValue: 2)
@@ -41,6 +41,7 @@ metadata {
         command "off"
         command "poll"
         command "refresh"
+        command "setLevel"
 
         // capability attributes
         attribute "colorTemperature", "NUMBER"
@@ -204,7 +205,6 @@ def refresh() {
  * Extra Hue Commands
  **/
 def flashOnce() {
-
     log "Hue B Smart Ambience Bulb: flashOnce(): ", "trace"
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
@@ -221,7 +221,6 @@ def flashOnce() {
 }
 
 def flashNotify() {
-    
     log "Hue B Smart Ambience Bulb: flashNotify(): ", "trace"
 
     flashOn()
@@ -229,7 +228,6 @@ def flashNotify() {
 }
 
 def flashOn() {
-    
     log "Hue B Smart Ambience Bulb: flashOn(): ", "trace"
     
     def commandData = parent.getCommandData(device.deviceNetworkId)
