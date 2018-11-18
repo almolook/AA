@@ -15,47 +15,40 @@
  *	Changelog:
  *  05/11/2018 xap-code fork for Hubitat
  *  13/11/2018 Link logging to parent app setting
+ *  17/11/2018 Tidy up capabilities
+ *  18/11/2018 Optimise device sync for multiple bridges
  *
  */
 preferences {
 	input("tt", "number", title: "Time it takes for the lights to transition (default: 2 = 200ms)")   
-    input("flashNotifySecs", "number", title: "Flash notification seconds (default: 5s)", defaultValue: 5)
+	input("flashNotifySecs", "number", title: "Flash notification seconds (default: 5s)", defaultValue: 5)
 }  
  
 metadata {
 	definition (name: "Hue B Smart White Ambiance Group", namespace: "info_fiend", author: "Anthony Pastor") {
-        capability "Actuator"
-        capability "Color Temperature"
-        capability "Light"
-        capability "Polling"
-        capability "Refresh"
-        capability "Sensor"
-        capability "Switch"
-        capability "Switch Level"
-	
-        command "setColorTemperature"        
-        command "on"
-        command "off"
-        command "setLevel"
-        command "refresh"
-        command "updateStatus"
-        command "flashNotify"
-        command "flashOnce"
-        command "flashOn"
-        command "flashOff"	
- 
-        attribute "lights", "STRING"       
-        attribute "transitionTime", "NUMBER"
-        attribute "bri", "number"
-        attribute "level", "number"
-        attribute "on", "string"
-        attribute "colorTemperature", "number"
+		capability "Actuator"
+		capability "Color Temperature"
+		capability "Light"
+		capability "Polling"
+		capability "Refresh"
+		capability "Sensor"
+		capability "Switch"
+		capability "Switch Level"
+        
+		// extra Hue commands
+		command "flashOn"
+		command "flashOff"
+		command "flashOnce"
+		command "flashNotify"
+        
+		// extra Hue attributes
+		attribute "transitionTime", "NUMBER"
 	}
 }
 
 // parse events into attributes
 def parse(String description) {
-	log "Parsing '${description}'", "debug"
+	log "Parsing (ignoring) '${description}'", "debug"
 }
 
 def installed() {
@@ -70,13 +63,25 @@ def updated(){
 }
 
 def initialize() {
-	state.xy = [:]
 }
 
 /** 
  * capability.switchLevel 
  **/
-def setLevel(inLevel) {
+def scaleLevel(level, fromHub = false, max = 254) {
+  
+	if (fromHub) {
+		return Math.round( level * max / 100 )
+	} else {
+		if (max == 0) {
+			return 0
+		} else { 	
+			return Math.round( level * 100 / max )
+		}
+	}      
+}
+                
+def setLevel(inLevel, duration = null) {
 	log "Hue B Smart Ambience Group: setLevel ( ${inLevel} ): ", "trace"
     
 	def level = scaleLevel(inLevel, true, 254)
@@ -84,16 +89,16 @@ def setLevel(inLevel) {
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	def tt = this.device.currentValue("transitionTime") as Integer ?: 0
         
-    runIn(1, refresh)
+	runIn(1, refresh)
 
 	parent.sendHubCommand(new hubitat.device.HubAction(
-    	[
-        	method: "PUT",
+		[
+			method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
+			headers: [
+				host: "${commandData.ip}"
 			],
-	        body: [on: true, bri: level, transitiontime: tt]
+			body: [on: true, bri: level, transitiontime: duration ? duration * 10 : tt]
 		])
 	)    
 }
@@ -109,16 +114,16 @@ def on() {
 	def percent = device.currentValue("level") as Integer ?: 100
 	def level = scaleLevel(percent, true, 254)
         
-    runIn(1, refresh)
+	runIn(1, refresh)
 
-    return new hubitat.device.HubAction(
-        [
-        	method: "PUT",
+	return new hubitat.device.HubAction(
+		[
+			method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
+			headers: [
+				host: "${commandData.ip}"
 			],
-	        body: [on: true, bri: level, transitiontime: tt]
+			body: [on: true, bri: level, transitiontime: tt]
 		])
 }
 
@@ -128,14 +133,14 @@ def off() {
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	def tt = device.currentValue("transitionTime") as Integer ?: 0
         
-    runIn(1, refresh)
+	runIn(1, refresh)
 
 	return new hubitat.device.HubAction(
-    	[
-        	method: "PUT",
+		[
+			method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
+			headers: [
+				host: "${commandData.ip}"
 			],
 			body: [on: false]
 		])
@@ -154,7 +159,7 @@ def poll() {
  **/
 def refresh() {
 	log "Hue B Smart Ambience Group: refresh(): ", "trace"
-	parent.doDeviceSync()
+	parent.doDeviceSync(device.deviceNetworkId)
 }
 
 /**
@@ -169,15 +174,14 @@ def setColorTemperature(inCT) {
 	def commandData = parent.getCommandData(device.deviceNetworkId)
 	def tt = device.currentValue("transitionTime") as Integer ?: 0
     
-    
 	parent.sendHubCommand(new hubitat.device.HubAction(
-    	[
-        	method: "PUT",
+		[
+			method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
+			headers: [
+				host: "${commandData.ip}"
 			],
-	        body: [ct: colorTemp, transitiontime: tt]
+			body: [ct: colorTemp, transitiontime: tt]
 		])
 	)
 }
@@ -186,168 +190,178 @@ def setColorTemperature(inCT) {
  * capability.alert (flash)
  **/
 def flashOnce() {
-    log "Hue B Smart Ambiance Group: flashOnce(): ", "trace"
-    
-    def commandData = parent.getCommandData(device.deviceNetworkId)
-    parent.sendHubCommand(new hubitat.device.HubAction(
-        [
-            method: "PUT",
-            path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-            headers: [
-                host: "${commandData.ip}"
-            ],
-            body: [alert: "select"]
-        ])
-    )
+	log "Hue B Smart Ambiance Group: flashOnce(): ", "trace"
+  
+	def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new hubitat.device.HubAction(
+		[
+			method: "PUT",
+			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
+			headers: [
+				host: "${commandData.ip}"
+			],
+			body: [alert: "select"]
+		])
+	)
 }
 
 def flashNotify() {
-    log "Hue B Smart Ambiance Group: flashNotify(): ", "trace"
+	log "Hue B Smart Ambiance Group: flashNotify(): ", "trace"
 
-    flashOn()
-    runIn(flashNotifySecs ?: 5, flashOff)
+	flashOn()
+	runIn(flashNotifySecs ?: 5, flashOff)
 }
 
 def flashOn() {
-    log "Hue B Smart Ambiance Group: flashOn(): ", "trace"
+	log "Hue B Smart Ambiance Group: flashOn(): ", "trace"
     
-    def commandData = parent.getCommandData(device.deviceNetworkId)
-    parent.sendHubCommand(new hubitat.device.HubAction(
-        [
-            method: "PUT",
-            path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-            headers: [
-                host: "${commandData.ip}"
-            ],
-            body: [alert: "lselect"]
-        ])
-    )
+	def commandData = parent.getCommandData(device.deviceNetworkId)
+	parent.sendHubCommand(new hubitat.device.HubAction(
+		[
+			method: "PUT",
+			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
+			headers: [
+				host: "${commandData.ip}"
+			],
+			body: [alert: "lselect"]
+		])
+	)
 }
 
 def flashOff() {
-    log "Hue B Smart Ambiance Group: flashOff(): ", "trace"
+	log "Hue B Smart Ambiance Group: flashOff(): ", "trace"
     
-    def commandData = parent.getCommandData(device.deviceNetworkId)
+	def commandData = parent.getCommandData(device.deviceNetworkId)
 	parent.sendHubCommand(new hubitat.device.HubAction(
-    	[
-        	method: "PUT",
+		[
+			method: "PUT",
 			path: "/api/${commandData.username}/groups/${commandData.deviceId}/action",
-	        headers: [
-	        	host: "${commandData.ip}"
+			headers: [
+				host: "${commandData.ip}"
 			],
-	        body: [alert: "none"]
+			body: [alert: "none"]
 		])
 	)
 }
 
 /**
- * scaleLevel
- **/
-def scaleLevel(level, fromST = false, max = 254) {
-  
-    if (fromST) {
-        return Math.round( level * max / 100 )
-    } else {
-    	if (max == 0) {
-    		return 0
-		} else { 	
-        	return Math.round( level * 100 / max )
-		}
-    }      
-}
-                
-/**
  * Update Status
  **/
 private updateStatus(action, param, val) {
 	log "Hue B Ambience Group: updateStatus ( ${param}:${val} )", "trace"
-    
 
-    def curValue
-	switch(param) {
-        case "on":
-            curValue = device.currentValue("switch") 
-            def onoff
-            if (val == true) {
-                if (curValue != on) {
-                    log "Update Needed: Current Value of switch = false & newValue = ${val}", "debug"
-                    sendEvent(name: "switch", value: on, displayed: true, isStateChange: true)                	     
-                } else {
-                    //log.debug "NO Update Needed for switch"                	
-                }
-            } else {
-                if (curValue != off) {
-                    log "Update Needed: Current Value of switch = true & newValue = ${val}", "debug"
-                    sendEvent(name: "switch", value: off, displayed: true)
+	if (action == "action") {
+		def curValue
+		switch(param) {
+		
+			case "on":
+				curValue = device.currentValue("switch") 
+				def onoff
+				if (val == true) {
+					if (curValue != on) {
+						log "Update Needed: Current Value of switch = false & newValue = ${val}", "debug"
+						sendEvent(name: "switch", value: on, displayed: true, isStateChange: true)                	     
+					} else {
+						//log.debug "NO Update Needed for switch"                	
+					}
 				} else {
-                    //log.debug "NO Update Needed for switch"                	
-                }
-            }    
-            break
-        case "bri":
-            curValue = device.currentValue("level")
-            val = scaleLevel(val)
-            if (curValue != val) {
-                log "Update Needed: Current Value of level = ${curValue} & newValue = ${val}", "debug"
-                sendEvent(name: "level", value: val, displayed: true, isStateChange: true) 
-            } else {
-                //log.debug "NO Update Needed for level"                	
-            }
-            break
-        case "transitiontime":
-            curValue = device.currentValue("transitionTime")
-            if (curValue != val) {
-                log "Update Needed: Current Value of transitionTime = ${curValue} & newValue = ${val}", "debug"
-                sendEvent(name: "transitionTime", value: val, displayed: false, isStateChange: true)
-            } else {
-                //log.debug "NO Update Needed for transitionTime"                	
-            }    
-            break
-        case "ct": 
-            curValue = device.currentValue("colorTemperature")
-            val = Math.round(1000000/val)
-            if (curValue != val) {
-                log "Update Needed: Current Value of colorTemperature = ${curValue} & newValue = ${val}", "debug"
-                sendEvent(name: "colorTemperature", value: val, displayed: false, isStateChange: true) 
-            } else {
-                //log.debug "NO Update Needed for colorTemperature"                	
-            }
-            break
-        case "alert":
-            if (val == "none") {
-                log "Not Flashing", "debug"
-            } else {
-                log "Flashing", "debug"
-            }              
-            break
-        case "lights":
-            curValue = device.currentValue("lights")
-            if (curValue != val) {
-                log "Update Needed: Current Value of lights = ${curValue} & newValue = ${val}", "debug"
-                sendEvent(name: "lights", value: val, displayed: false, isStateChange: true) 
-            } else {
-                //log.debug "NO Update Needed for lights"
-            }
-            break
+					if (curValue != off) {
+						log "Update Needed: Current Value of switch = true & newValue = ${val}", "debug"
+						sendEvent(name: "switch", value: off, displayed: true)
+					} else {
+						//log.debug "NO Update Needed for switch"                	
+					}
+				}    
+				break
+		
+			case "bri":
+				curValue = device.currentValue("level")
+				val = scaleLevel(val)
+				if (curValue != val) {
+					log "Update Needed: Current Value of level = ${curValue} & newValue = ${val}", "debug"
+					sendEvent(name: "level", value: val, displayed: true, isStateChange: true) 
+				} else {
+					//log.debug "NO Update Needed for level"                	
+				}
+				break
+		
+			case "transitiontime":
+				curValue = device.currentValue("transitionTime")
+				if (curValue != val) {
+					log "Update Needed: Current Value of transitionTime = ${curValue} & newValue = ${val}", "debug"
+					sendEvent(name: "transitionTime", value: val, displayed: false, isStateChange: true)
+				} else {
+					//log.debug "NO Update Needed for transitionTime"                	
+				}    
+				break
+		
+			case "ct": 
+				curValue = device.currentValue("colorTemperature")
+				val = Math.round(1000000/val)
+				if (curValue != val) {
+					log "Update Needed: Current Value of colorTemperature = ${curValue} & newValue = ${val}", "debug"
+					sendEvent(name: "colorTemperature", value: val, displayed: false, isStateChange: true) 
+				} else {
+					//log.debug "NO Update Needed for colorTemperature"                	
+				}
+				break
+		
+			case "alert":
+				if (val == "none") {
+					log "Not Flashing", "debug"
+				} else {
+					log "Flashing", "debug"
+				}              
+				break
+		
+			case "lights":
+				curValue = device.currentValue("lights")
+				if (curValue != val) {
+					log "Update Needed: Current Value of lights = ${curValue} & newValue = ${val}", "debug"
+					sendEvent(name: "lights", value: val, displayed: false, isStateChange: true) 
+				} else {
+					//log.debug "NO Update Needed for lights"
+				}
+				break
 
-        default: 
-            log "Unhandled parameter: ${param}. Value: ${val}", "debug"
-    }
+			case "colormode":
+				if (val != 'ct') {
+					log "Unexpected value: ${val} (expected 'ct')", "warn"
+				}
+				break
+					
+			case "scene":
+				log "received scene ${val}", "trace"
+				break    
+
+			case "effect":
+			case "xy":
+			case "hue":
+			case "sat":
+				if (val) {
+					log "Unexpected value: ${val}", "warn"
+				}
+			break;
+		
+			default: 
+				log "Unhandled parameter: ${param}. Value: ${val}", "debug"
+		}
+	}
 }
 
 def log(String text, String type = null){
     
-   	if (type == "warn") {
-        log.warn "${text}"
-    } else if (type == "error") {
-        log.error "${text}"
-    } else if (parent.debugLogging) {
-        if (type == "info") {
-            log.info "${text}"
-        } else if (type == "trace") {
-    		log.trace "${text}"
-        } else {
-    		log.debug "${text}"
-        }
+	if (type == "warn") {
+		log.warn "${text}"
+	} else if (type == "error") {
+		log.error "${text}"
+	} else if (parent.debugLogging) {
+		if (type == "info") {
+			log.info "${text}"
+		} else if (type == "trace") {
+			log.trace "${text}"
+		} else {
+			log.debug "${text}"
+		}
 	}
 }

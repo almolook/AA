@@ -16,6 +16,7 @@
  *  04/11/2018 xap-code fork for Hubitat
  *  12/11/2018 Change debug logging setting to boolean
  *  13/11/2018 Remove constant ssdp polling
+ *  18/11/2018 Optimise device sync for multiple bridges
  */
  
 import groovy.json.*
@@ -24,7 +25,7 @@ definition(
 	name: "Hue B Smart",
 	namespace: "info_fiend",
 	author: "anthony pastor",
-	description: "The Smartest Hue Control App for SmartThings - total control of bulbs, scenes, groups, and schedules",
+	description: "The Smartest Hue Control App for Hubitat - total control of bulbs, scenes, groups, and schedules",
 	category: "My Apps",
 	iconUrl: "",
 	iconX2Url: "",
@@ -1126,35 +1127,20 @@ private String convertHexToIP(hex) {
     [convertHexToInt(hex[0..1]),convertHexToInt(hex[2..3]),convertHexToInt(hex[4..5]),convertHexToInt(hex[6..7])].join(".")
 }
 
-def scaleLevel(level, fromST = false, max = 254) {
-	log("ScaleLevel( ${level}, ${fromST}, ${max} )", "info")
-    /* scale level from 0-254 to 0-100 */
-    
-    if (fromST) {
-        return Math.round( level * max / 100 )
-    } else {
-    	if (max == 0) {
-    		return 0
-		} else { 	
-        	return Math.round( level * 100 / max )
-		}
-    }    
-    log("scaleLevel returned ${scaled}", "info")
-    
-}
-
 def parse(desc) {
     log("parse")
 }
 
-def doDeviceSync(inItems = null) {
+def doDeviceSync(callingDeviceId = null, inItems = null) {
+
 	state.limitation = inItems
-	log("Doing Hue Device Sync!", "info")
+	log("Doing Hue Device Sync...", "info")
 	state.doingSync = true
 	state.linked_bridges.each {
-		def bridgeDev = getChildDevice(it.value.mac)
-		if (bridgeDev) {
-			bridgeDev.discoverItems(inItems)
+
+		if (!callingDeviceId || callingDeviceId.startsWith(it.value.mac)) {
+			def bridgeDev = getChildDevice(it.value.mac)
+			bridgeDev?.discoverItems(inItems)
 		}
 	}
 	state.doingSync = false
