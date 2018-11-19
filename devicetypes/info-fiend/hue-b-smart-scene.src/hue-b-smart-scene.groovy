@@ -17,15 +17,17 @@
  *  12/11/2018 Link logging to smart app setting
  *  18/11/2018 Simplify by remove extra commands and attributes
  *  18/11/2018 Optimise device sync for multiple bridges
+ *  19/11/2018 Add "push" command back to definition
  */
 metadata {
 	definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
-        
 		capability "Actuator"
 		capability "PushableButton"
 		capability "Refresh"
 		capability "Sensor"
 		capability "Switch"
+
+		command "push"
 	}
 }
 
@@ -48,7 +50,7 @@ def off() {
 /**
  * capablity.momentary
  **/
-def push() {
+def push(buttonIgnored = null) {
     sendEvent(name: "pushed", value: 1, isStateChange: true, display: false)
     sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
     sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
