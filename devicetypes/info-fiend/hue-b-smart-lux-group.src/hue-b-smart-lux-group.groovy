@@ -45,16 +45,16 @@ metadata {
 
 // parse events into attributes
 def parse(String description) {
-	log.debug "Parsing (ignoring) '${description}'"
+	log "Parsing (ignoring) '${description}'", "debug"
 }
 
 def installed() {
-	log.debug "Installed with settings: ${settings}"
+	log "Installed with settings: ${settings}", "info"
 	initialize()
 }
 
 def updated(){
-	log.debug "Updated with settings: ${settings}"
+	log "Updated with settings: ${settings}", "info"
 	sendEvent(name: "transitionTime", value: tt)
 }
 
