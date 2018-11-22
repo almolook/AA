@@ -697,14 +697,14 @@ def chooseGroups(params) {
 		section("") { 
 			href(name: "manageBridge", page: "manageBridge", description: "", title: "Back to Bridge", params: [mac: params.mac], submitOnChange: true )
 		}
-		section("Hue Groups Added to SmartThings") {
+		section("Added Groups") {
 			addedGroups.sort{it.value.name}.each { 
 				def devId = "${params.mac}/GROUP${it.key}"
 				def name = it.value.label
 				href(name:"${devId}", page:"chooseGroups", description:"", title:"Remove ${name}", params: [mac: params.mac, remove: devId], submitOnChange: true )
 			}
 		}
-		section("Available Hue Groups") {
+		section("Available Groups") {
 			availableGroups.sort{it.value.name}.each { 
 				def devId = "${params.mac}/GROUP${it.key}"
 				def name = it.value.label
@@ -1113,7 +1113,8 @@ def doDeviceSync(callingDeviceId = null) {
 
 		if (!callingDeviceId || callingDeviceId.startsWith(it.value.mac)) {
 			def bridgeDev = getChildDevice(it.value.mac)
-			bridgeDev?.discoverItems(state.inItemDiscovery)
+			def discoverScenes = callingDeviceId == null
+			bridgeDev?.discoverItems(discoverScenes)
 		}
 	}
 }

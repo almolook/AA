@@ -61,7 +61,7 @@ def initialize() {
 }
 
 
-def discoverItems(discoverScenes = false) {
+def discoverItems(discoverScenes = true) {
 	log "Bridge discovering all items on Hue hub.", "trace"
 	
 	if (state.initialize != true ) { initialize() }
@@ -226,8 +226,6 @@ def processJson(body, mac) {
 		def groups = [:] 
 		def scenes = [:] 
 
-		log.debug "BODY: ${body}"
-		
 		body?.lights?.each { k, v ->
 			bulbs[k] = [id: k, label: v.name, type: v.type, state: v.state]
 		}
