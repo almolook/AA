@@ -18,7 +18,8 @@
  *  13/11/2018 Remove constant ssdp polling
  *  18/11/2018 Optimise device sync for multiple bridges
  *  18/11/2018 Prevent null ref exception in sendDeveloperReq(...)
- */
+ *  22/11/2018 Add Hubitat HTTP method usage for non-scene device polling
+  */
  
 import groovy.json.*
 
@@ -525,8 +526,6 @@ def chooseScenes(params) {
 		def devId = "${params.mac}/SCENE${sceneId}"
 		try { 
 			def d = addChildDevice("info_fiend", "Hue B Smart Scene", devId, bridge.value.hub, ["label": s.label, "type": "scene", "lights": s.lights, "lightStates": s.lightStates])
-			//            d.updateStatus("scene", "lights", s.lights )
-			//            d.updateStatus("scene", "lightStates", s.lightStates )
 			if (d.scheduleId) {
 				d.updateStatus("scene", "scheduleId", s.scheduleId )
 			}    
@@ -738,7 +737,6 @@ def initialize() {
 	state.unlinked_bridges = [:]
 	state.bridgeRefreshCount = 0
 	state.installed = true
-	state.limitation = "None"
 	state.scheduleEnabled = [:]
     
 	doDeviceSync()
@@ -835,30 +833,6 @@ def itemDiscoveryHandler(evt) {
 						["bri", "on"].each { p ->
 							it.updateStatus("action", p, bridge.value.groups[groupId].action[p])
 						}
-					}
-				}
-			}
-
-			if (it.deviceNetworkId.contains("SCENE")) {
-				log("it.deviceNetworkId contains SCENE = ${it.deviceNetworkId}", "trace")
-				log("contains SCENE / DNI = ${it.deviceNetworkId}", "trace")
-				def sceneId = it.deviceNetworkId.split("/")[1] - "SCENE"
-				log("sceneId = ${sceneId}", "trace")
-				def sceneFromBridge = bridge.value.scenes[sceneId]
-				log("sceneFromBridge = ${sceneFromBridge}", "trace")
-				if ( sceneFromBridge != null ) { // If user removes scene from hue without removing it from smartthings,
-					def sceneLights = []         // getChildDevices() will still return the scene as part of the array as null, so we need to check for it to prevent crashing.
-					sceneLights = sceneFromBridge.lights
-					def scenelightStates = sceneFromBridge.lightStates
-
-					log("bridge.value.scenes[${sceneId}].lights = ${sceneLights}", "trace")
-					log("bridge.value.scenes[${sceneId}].lightStates = ${scenelightStates}", "trace")
-
-					if (bridge.value.scenes[sceneId].lights) {
-						it.updateStatus("scene", "lights", bridge.value.scenes[sceneId].lights)
-					}
-					if (scenelightStates) {
-						it.updateStatus("scene", "lightStates", scenelightStates)
 					}
 				}
 			}
@@ -1124,22 +1098,24 @@ private String convertHexToIP(hex) {
 }
 
 def parse(desc) {
-	log("parse")
+	log "parse (ignored): ${desc}"
 }
 
-def doDeviceSync(callingDeviceId = null, inItems = null) {
+def doDeviceSync(callingDeviceId = null) {
 
-	state.limitation = inItems
-	log("Doing Hue Device Sync...", "info")
-	state.doingSync = true
+	if (callingDeviceId) {
+		log "Doing Hue Device Sync for ${callingDeviceId}...", "info"
+	} else {
+		log "Doing Global Hue Device Sync...", "info"
+	}
+
 	state.linked_bridges.each {
 
 		if (!callingDeviceId || callingDeviceId.startsWith(it.value.mac)) {
 			def bridgeDev = getChildDevice(it.value.mac)
-			bridgeDev?.discoverItems(inItems)
+			bridgeDev?.discoverItems(state.inItemDiscovery)
 		}
 	}
-	state.doingSync = false
 }
 
 def log(String text, String type = null){

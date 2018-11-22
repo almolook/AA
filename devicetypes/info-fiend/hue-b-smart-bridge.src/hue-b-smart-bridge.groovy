@@ -17,6 +17,7 @@
  *  12/11/2018 Remove healthcheck methods not used in Hubitat
  *  12/11/2018 Link logging to smart app setting
  *  18/11/2018 Optimise device sync for multiple bridges
+ *  22/11/2018 Add Hubitat HTTP method usage for non-scene device polling
  */
 
 import groovy.json.*
@@ -32,13 +33,9 @@ metadata {
 		attribute "host", "string"
         
 		command "discoverItems"
-		command "discoverBulbs"
-		command "discoverGroups"
-		command "discoverScenes"
 		command "pollItems"
 		command "pollBulbs"
 		command "pollGroups"
-		command "pollScenes"
 	}
 }
 
@@ -64,7 +61,7 @@ def initialize() {
 }
 
 
-def discoverItems(inItems = null) {
+def discoverItems(discoverScenes = false) {
 	log "Bridge discovering all items on Hue hub.", "trace"
 	
 	if (state.initialize != true ) { initialize() }
@@ -75,19 +72,39 @@ def discoverItems(inItems = null) {
 
 	log "*********** ${host} ********", "debug"
 	log "*********** ${username} ********", "debug"
-	def result 
-        
-	if (!inItems) {
-		result = new hubitat.device.HubAction(
+
+	if (discoverScenes) {
+		
+		// use original Hue B Smart HubAction method
+		return new hubitat.device.HubAction(
 			method: "GET",
 			path: "/api/${username}/",
 			headers: [
 				HOST: host
 			]
 		)
-	}    
-                 
-	return result
+		
+	} else {
+		
+		// use direct Hubitat HTTP methods
+		def lightParams = [
+			uri: "http://${host}",
+			path: "/api/${username}/lights"
+		]
+		
+		def groupParams = [
+			uri: "http://${host}",
+			path: "/api/${username}/groups"
+		]
+		
+		httpGet(lightParams, { resp ->
+			processLights(resp.data)
+		})
+		
+		httpGet(groupParams, { resp ->
+			processGroups(resp.data)
+		})
+	}
 }
 
 def pollItems() {
@@ -105,53 +122,20 @@ def pollItems() {
 	))
 }
 
-def discoverBulbs() {
-	log "discoverBulbs: discovering bulbs from Hue hub.", "trace"
-
-	def host = state.host
-	def username = state.userName
-        
-	def result = new hubitat.device.HubAction(
-	method: "GET",
-	path: "/api/${username}/lights/",
-		headers: [
-			HOST: host
-		]
-	)
-	
-	return result
-}
-
 def pollBulbs() {
 	log "pollBulbs: polling bulbs state from Hue hub.", "trace"
 
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new hubitat.device.HubAction(
-	method: "GET",
-	path: "/api/${username}/lights/",
-		headers: [
-			HOST: host
-		]
-	))
-}
-
-def discoverGroups() {
-	log "discoverGroups: discovering groups from Hue hub.", "trace"
-
-	def host = state.host
-	def username = state.userName
-        
-	def result = new hubitat.device.HubAction(
-		method: "GET",
-		path: "/api/${username}/groups/",
-		headers: [
-			HOST: host
-		]
-	)
-    
-	return result
+	def lightParams = [
+		uri: "http://${host}",
+		path: "/api/${username}/lights"
+	]
+		
+	httpGet(lightParams, { resp ->
+		processLights(resp.data)
+	})
 }
 
 def pollGroups() {
@@ -160,28 +144,14 @@ def pollGroups() {
 	def host = state.host
 	def username = state.userName
         
-	sendHubCommand(new hubitat.device.HubAction(
-	method: "GET",
-	path: "/api/${username}/groups/",
-		headers: [
-			HOST: host
-		]
-	))
-}
+	def groupParams = [
+		uri: "http://${host}",
+		path: "/api/${username}/groups"
+	]
 
-def pollScenes() {
-	log "pollGroups: polling scenes state from Hue hub.", "trace"
-
-	def host = state.host
-	def username = state.userName
-        
-	sendHubCommand(new hubitat.device.HubAction(
-	method: "GET",
-	path: "/api/${username}/scenes/",
-		headers: [
-			HOST: host
-		]
-	))
+	httpGet(groupParams, { resp ->
+		processGroups(resp.data)
+	})
 }
 
 def handleParse(desc) {
@@ -189,104 +159,138 @@ def handleParse(desc) {
 	parse(desc)
 }
 
+def processJson(body, mac) {
+	
+	log "processJson", "trace"
+
+	def bridge = parent.getBridge(mac)
+	def group 
+	def commandReturn = []
+
+	/* responses from bulb/group/scene/ command. Figure out which device it is, then pass it along to the device. */
+	if (body[0] != null && body[0].success != null) {
+		log "${body[0].success}", "trace"
+		body.each{
+			it.success.each { k, v ->
+				def spl = k.split("/")
+				//log.debug "k = ${k}, split1 = ${spl[1]}, split2 = ${spl[2]}, split3 = ${spl[3]}, split4= ${spl[4]}, value = ${v}"                            
+				def devId = ""
+				def d
+				def groupScene
+
+				if (spl[4] == "scene" || it.toString().contains( "lastupdated") ) {	
+					log "HBS Bridge:parse:scene - msg.body == ${body}", "trace"
+					devId = bridge.value.mac + "/SCENE" + v
+					d = parent.getChildDevice(devId)
+					groupScene = spl[2]
+					d.updateStatus(spl[3], spl[4], v) 
+					log "Scene ${d.label} successfully run on group ${groupScene}.", "debug"
+
+					// GROUPS
+				} else if (spl[1] == "groups" && spl[2] != 0 ) {    
+					devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
+					//log.debug "GROUP: devId = ${devId}"                            
+					d = parent.getChildDevice(devId)
+					d.updateStatus(spl[3], spl[4], v) 
+					def gLights = []
+					def thisbridge = bridge.value.mac
+					//log.debug "This Bridge ${thisbridge}"
+
+					gLights = parent.getGLightsDNI(spl[2], thisbridge)
+					gLights.each { gl ->
+						if(gl != null){
+							gl.updateStatus("state", spl[4], v)
+							log "GLight ${gl}", "trace"
+						}
+					}
+
+					// LIGHTS		
+				} else if (spl[1] == "lights") {
+					spl[1] = "BULBS"
+					devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
+					d = parent.getChildDevice(devId)
+					d.updateStatus(spl[3], spl[4], v)
+
+				} else {
+					log "Response contains unknown device type ${ spl[1] } .", "warn"
+				}
+
+				commandReturn
+			}
+		}	
+	} else if (body[0] != null && body[0].error != null) {
+		log "Error: ${body}", "warn"
+	} else if (bridge) {
+
+		def bulbs = [:] 
+		def groups = [:] 
+		def scenes = [:] 
+
+		log.debug "BODY: ${body}"
+		
+		body?.lights?.each { k, v ->
+			bulbs[k] = [id: k, label: v.name, type: v.type, state: v.state]
+		}
+		state.bulbs = bulbs
+
+		body?.groups?.each { k, v -> 
+			groups[k] = [id: k, label: v.name, type: v.type, action: v.action, all_on: v.state.all_on, any_on: v.state.any_on, lights: v.lights] //, groupLightDevIds: devIdsGLights]
+		}
+		state.groups = groups
+
+		body.scenes?.each { k, v -> 
+			scenes[k] = [id: k, label: v.name, type: "scene", lights: v.lights]
+		}
+		state.scenes = scenes
+
+		def data = new JsonBuilder([bulbs, scenes, groups, schedules, bridge.value.mac])
+
+		return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: data.toString())
+	}
+}
+
+def processLights(json) {
+	def bulbs = [:] 
+	def groups = [:] 
+	def scenes = [:] 
+
+	json?.each { k, v ->
+		bulbs[k] = [id: k, label: v.name, type: v.type, state: v.state]
+	}
+	state.bulbs = bulbs
+
+	def data = new JsonBuilder([bulbs, scenes, groups, schedules, device.deviceNetworkId])
+
+	sendEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: data.toString())
+}
+
+def processGroups(json) {
+	def bulbs = [:] 
+	def groups = [:] 
+	def scenes = [:] 
+
+	json?.each { k, v -> 
+		groups[k] = [id: k, label: v.name, type: v.type, action: v.action, all_on: v.state.all_on, any_on: v.state.any_on, lights: v.lights] //, groupLightDevIds: devIdsGLights]
+	}
+	state.groups = groups
+
+	def data = new JsonBuilder([bulbs, scenes, groups, schedules, device.deviceNetworkId])
+
+	sendEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: data.toString())
+}
 
 // parse events into attributes
-
 def parse(String description) {
 
-	log "parse(${description})", "trace"
+	log "parse", "trace"
 	
 	def parsedEvent = parseLanMessage(description)
 	if (parsedEvent.headers && parsedEvent.body) {
 
 		def headerString = parsedEvent.headers.toString()
 		if (headerString.contains("application/json")) {
-		
-			def body = new groovy.json.JsonSlurperClassic().parseText(parsedEvent.body)
-			def bridge = parent.getBridge(parsedEvent.mac)
-			def group 
-			def commandReturn = []
-			
-			/* responses from bulb/group/scene/ command. Figure out which device it is, then pass it along to the device. */
-			if (body[0] != null && body[0].success != null) {
-				log "${body[0].success}", "trace"
-				body.each{
-					it.success.each { k, v ->
-						def spl = k.split("/")
-						//log.debug "k = ${k}, split1 = ${spl[1]}, split2 = ${spl[2]}, split3 = ${spl[3]}, split4= ${spl[4]}, value = ${v}"                            
-						def devId = ""
-						def d
-						def groupScene
-						
-						if (spl[4] == "scene" || it.toString().contains( "lastupdated") ) {	
-							log "HBS Bridge:parse:scene - msg.body == ${body}", "trace"
-							devId = bridge.value.mac + "/SCENE" + v
-							d = parent.getChildDevice(devId)
-							groupScene = spl[2]
-							d.updateStatus(spl[3], spl[4], v) 
-							log "Scene ${d.label} successfully run on group ${groupScene}.", "debug"
-							//parent.doDeviceSync("bulbs")
-							
-							// GROUPS
-						} else if (spl[1] == "groups" && spl[2] != 0 ) {    
-							devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
-							//log.debug "GROUP: devId = ${devId}"                            
-							d = parent.getChildDevice(devId)
-							d.updateStatus(spl[3], spl[4], v) 
-							def gLights = []
-							def thisbridge = bridge.value.mac
-							//log.debug "This Bridge ${thisbridge}"
-                            
-							gLights = parent.getGLightsDNI(spl[2], thisbridge)
-							gLights.each { gl ->
-								if(gl != null){
-									gl.updateStatus("state", spl[4], v)
-									log "GLight ${gl}", "trace"
-								}
-							}
-                            
-							// LIGHTS		
-						} else if (spl[1] == "lights") {
-							spl[1] = "BULBS"
-							devId = bridge.value.mac + "/" + spl[1].toUpperCase()[0..-2] + spl[2]
-							d = parent.getChildDevice(devId)
-							d.updateStatus(spl[3], spl[4], v)
-
-						} else {
-							log "Response contains unknown device type ${ spl[1] } .", "warn"
-						}
-						
-						commandReturn
-					}
-				}	
-			} else if (body[0] != null && body[0].error != null) {
-				log "Error: ${body}", "warn"
-			} else if (bridge) {
-            	
-				def bulbs = [:] 
-				def groups = [:] 
-				def scenes = [:] 
-                
-				body?.lights?.each { k, v ->
-					bulbs[k] = [id: k, label: v.name, type: v.type, state: v.state]
-				}
-				state.bulbs = bulbs
-				    
-				body?.groups?.each { k, v -> 
-					groups[k] = [id: k, label: v.name, type: v.type, action: v.action, all_on: v.state.all_on, any_on: v.state.any_on, lights: v.lights] //, groupLightDevIds: devIdsGLights]
-				}
-				state.groups = groups
-				
-				body.scenes?.each { k, v -> 
-					scenes[k] = [id: k, label: v.name, type: "scene", lights: v.lights]
-				}
-				state.scenes = scenes
-
-				def data = new JsonBuilder([bulbs, scenes, groups, schedules, bridge.value.mac])
-				
-				return createEvent(name: "itemDiscovery", value: device.hub.id, isStateChange: true, data: data.toString())
-			}
-			
+			def body = parseJson(parsedEvent.body)
+			return processJson(body, parsedEvent.mac)			
 		} else {
 			log "Unrecognized messsage: ${parsedEvent.body}", "warn"
 		}

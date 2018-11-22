@@ -18,6 +18,7 @@
  *  18/11/2018 Simplify by remove extra commands and attributes
  *  18/11/2018 Optimise device sync for multiple bridges
  *  19/11/2018 Add "push" command back to definition
+ *  22/11/2018 Simplified scene even further to remove light and schedule states
  */
 metadata {
 	definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
@@ -26,7 +27,7 @@ metadata {
 		capability "Refresh"
 		capability "Sensor"
 		capability "Switch"
-
+		
 		command "push"
 	}
 }
@@ -51,8 +52,8 @@ def off() {
  * capablity.momentary
  **/
 def push(buttonIgnored = null) {
-    sendEvent(name: "pushed", value: 1, isStateChange: true, display: false)
     sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
+    sendEvent(name: "pushed", value: 1, isStateChange: true, display: false)
     sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
     activateScene()
 }
@@ -80,35 +81,6 @@ def activateScene() {
 	)
 
 	parent.doDeviceSync(device.deviceNetworkId)
-}
-
-def updateStatus(type, param, val) {
-	log "updating status: ${type}:${param}:${val}", "trace"
-    
-	if (type == "scene") {
-		if (param == "lights") {
-
-			sendEvent(name: "lights", value: val, displayed:false, isStateChange: true)
-        
-		} else if (param == "lightStates") {
-
-			log "update lightsStates! = ${lightStates}", "trace"
-			sendEvent(name: "lightStates", value: val, displayed:true, isStateChange: true)
-            
-		} else if (param == "scheduleId") {
-        
-			log "Should be updating scheduleId with value of ${val}", "debug"
-			sendEvent(name: "scheduleId", value: val, displayed:false, isStateChange: true)
-                
-		} else if (param == "schedule") {
-
-			sendEvent(name: "schedule", value: val, displayed:false, isStateChange: true)
-            
-		} else {                
-
-			log "Unhandled parameter: ${param}. Value: ${val}", "debug"
-		}
-	}
 }
 
 def refresh() {
