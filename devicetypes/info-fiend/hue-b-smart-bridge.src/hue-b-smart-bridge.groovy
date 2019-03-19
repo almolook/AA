@@ -18,9 +18,10 @@
  *  12/11/2018 Link logging to smart app setting
  *  18/11/2018 Optimise device sync for multiple bridges
  *  22/11/2018 Add Hubitat HTTP method usage for non-scene device polling
+ *  19/03/2018 Only import JsonBuilder rather than .*
  */
 
-import groovy.json.*
+import groovy.json.JsonBuilder
 
 metadata {
 	definition (name: "Hue B Smart Bridge", namespace: "info_fiend", author: "Anthony Pastor") {

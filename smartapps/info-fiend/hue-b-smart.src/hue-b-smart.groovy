@@ -19,10 +19,9 @@
  *  18/11/2018 Optimise device sync for multiple bridges
  *  18/11/2018 Prevent null ref exception in sendDeveloperReq(...)
  *  22/11/2018 Add Hubitat HTTP method usage for non-scene device polling
-  */
+ *  19/03/2019 Remove usage of JsonSlurperClassic
+ */
  
-import groovy.json.*
-
 definition(
 	name: "Hue B Smart",
 	namespace: "info_fiend",
@@ -105,7 +104,7 @@ def manageBridge(params) {
 		}
 	}
 	/* discovery complete, re-enable device sync */
-	runEvery5Minutes(doDeviceSync)
+	runEvery5Minutes(doLimitedDeviceSync)
     
 	def numBulbs = bridge.value.bulbs.size() ?: 0
 	def numScenes = bridge.value.scenes.size() ?: 0
@@ -740,7 +739,7 @@ def initialize() {
 	state.scheduleEnabled = [:]
     
 	doDeviceSync()
-	runEvery5Minutes(doDeviceSync)
+	runEvery5Minutes(doLimitedDeviceSync)
 
 	state.linked_bridges.each {
 		def d = getChildDevice(it.value.mac)
@@ -857,7 +856,7 @@ def locationHandler(evt) {
 				/* description.xml reply, verifying bridge */
 				processVerifyResponse(parsedEvent.body)
 			} else if (headerString?.contains("json")) {
-				def body = new groovy.json.JsonSlurperClassic().parseText(parsedEvent.body)
+				def body = parseJson(parsedEvent.body)
 				if (body.success != null && body.success[0] != null && body.success[0].username) {
 					/* got username from bridge */
 					state.params.linkDone = true
@@ -1117,6 +1116,14 @@ def doDeviceSync(callingDeviceId = null) {
 			bridgeDev?.discoverItems(discoverScenes)
 		}
 	}
+}
+
+def doLimitedDeviceSync() {
+	
+	state.linked_bridges.each {
+		def bridgeDev = getChildDevice(it.value.mac)
+		bridgeDev?.discoverItems(false)
+	}	
 }
 
 def log(String text, String type = null){
