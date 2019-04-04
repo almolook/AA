@@ -19,6 +19,7 @@
  *  18/11/2018 Optimise device sync for multiple bridges
  *  19/11/2018 Add "push" command back to definition
  *  22/11/2018 Simplified scene even further to remove light and schedule states
+ *  04/04/2019 Add back Configuration capability with empty configure method
  */
 metadata {
 	definition (name: "Hue B Smart Scene", namespace: "info_fiend", author: "Anthony Pastor") {
@@ -27,6 +28,7 @@ metadata {
 		capability "Refresh"
 		capability "Sensor"
 		capability "Switch"
+		capability "Configuration"
 		
 		command "push"
 	}
@@ -36,6 +38,11 @@ metadata {
 def parse(String description) {
 	log "Parsing (ignoring): '${description}'", "debug"
 }
+
+/**
+ * capability.configuration
+ **/
+def configure() {}
 
 /** 
  * capability.switch
