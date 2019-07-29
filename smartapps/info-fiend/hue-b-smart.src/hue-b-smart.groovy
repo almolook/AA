@@ -20,6 +20,7 @@
  *  18/11/2018 Prevent null ref exception in sendDeveloperReq(...)
  *  22/11/2018 Add Hubitat HTTP method usage for non-scene device polling
  *  19/03/2019 Remove usage of JsonSlurperClassic
+ *  29/07/2019 Add single retry around getChildDevices()
  */
  
 definition(
@@ -320,7 +321,7 @@ def deleteBridge(params) {
 	log("Deleting bridge ${d.currentValue('networkAddress')} (${params.mac})", "warn")
     
 	def success = true
-	def devices = getChildDevices()
+	def devices = getChildDevicesWithRetry()
 	def text = ""
 	devices.each {
 		def devId = it.deviceNetworkId
@@ -747,6 +748,15 @@ def initialize() {
 	}
 }
 
+def getChildDevicesWithRetry() {
+	try {
+		getChildDevices()
+	} catch (Exception e) {
+		pauseExecution(500)
+		getChildDevices()
+	}
+}
+
 def itemDiscoveryHandler(evt) {
 
 	def data = parseJson(evt.data)
@@ -783,7 +793,7 @@ def itemDiscoveryHandler(evt) {
 	}
     
 	/* update existing devices */
-	def devices = getChildDevices()
+	def devices = getChildDevicesWithRetry()
 	log("devices = ${devices}", "info")
 	devices.each {
 		log("device = ${it}", "info")
